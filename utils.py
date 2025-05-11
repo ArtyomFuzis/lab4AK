@@ -1,0 +1,2 @@
+class WrongImplementationError(Exception):
+    pass
