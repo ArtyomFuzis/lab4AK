@@ -1,6 +1,6 @@
 from typing import Callable
 
-from .utils import WrongImplementationError
+from .utils import WrongImplementationError, ALUOperations
 
 
 class Latch:
@@ -111,6 +111,110 @@ class MultiPlex:
             raise WrongImplementationError("Multiplex choice is not bound: " + str(choice))
 
         return self.__Bindings[choice].get_data()
+
+class ALU:
+
+    def __init__(self, b_op: DataBus, b_in_1: DataBus, b_in_2: DataBus, b_flg: DataBus, b_out: DataBus):
+        self.__b_op = b_op
+        self.__b_in_1 = b_in_1
+        self.__b_in_2 = b_in_2
+        self.operations = {el.value: el for el in ALUOperations}
+        self.__out = (0).to_bytes(4)
+        self.__flg = (0).to_bytes(2)
+        b_flg.bind_provider(self.__get_flg)
+        b_out.bind_provider(self.__get_out)
+
+    def __get_flg(self) -> bytes:
+        self.perform()
+        return self.__flg
+
+    def __get_out(self) -> bytes:
+        self.perform()
+        return self.__out
+
+    def perform(self):
+        op_code_full = int.from_bytes(self.__b_op.get_data())
+        op_code_op = op_code_full & 0b00001111
+        flg_byte  = op_code_full & 0b00010000 != 0
+        flg_inc    = op_code_full & 0b00100000 != 0
+        flg_dec    = op_code_full & 0b01000000 != 0
+        flg_inv    = op_code_full & 0b10000000 != 0
+        operation = self.operations[op_code_op]
+        data1 = self.__b_in_1.get_data()
+        data2 = self.__b_in_2.get_data()
+        op1 = int.from_bytes(data1, signed=True)
+        op2 = int.from_bytes(data2, signed=True)
+        res = self.perform_operation(operation, op1, op2, False)
+        resu = self.perform_operation(operation, op1, op2, True)
+
+        if flg_inc:
+            res += 1
+
+        if flg_dec:
+            res -= 1
+
+        if flg_inv:
+            res = ~res
+
+        if flg_byte:
+            c = 0 if (res & 0x100) == 0 else 1
+            v = 0 if -128 <= res <= 127 else 1
+            res = res & 0xFF
+            n = 1 if res > 127 else 0
+            z = 0 if res != 0 else 1
+        else:
+            c = 0 if (resu & 0x100000000) == 0 else 1
+            v = 0 if -2147483648 <= res <= 2147483647 else 1
+            res = res & 0xFFFFFFFF
+            n = 1 if res > 2147483647 else 0
+            z = 0 if res != 0 else 1
+        self.__flg = int.to_bytes((c << 3) + (v << 2) + (n << 1) + z, 1)
+        self.__out = int.to_bytes(res, 4, signed=False)
+
+    def perform_operation(self, operation: ALUOperations, op1e: int, op2e: int, unsigned: bool) -> int:
+        if unsigned:
+            op1 = (0x100000000+op1e)%0x100000000
+            op2 = (0x100000000+op2e)%0x100000000
+        else:
+            op1 = op1e
+            op2 = op2e
+        if operation == ALUOperations.Add:
+            res = op1 + op2
+        elif operation == ALUOperations.Sub:
+            if unsigned: res = op1 + 0x100000000-op2
+            else: res = op1 - op2
+        elif operation == ALUOperations.Mul:
+            res = op1 * op2
+        elif operation == ALUOperations.Div:
+            res = op1 // op2
+        elif operation == ALUOperations.Rem:
+            res = op1 % op2
+        elif operation == ALUOperations.Left:
+            res = op1
+        elif operation == ALUOperations.Right:
+            res = op2
+        elif operation == ALUOperations.ShiftL:
+            res = op1 << op2
+        elif operation == ALUOperations.ShiftR:
+            res = op1 >> op2
+        elif operation == ALUOperations.And:
+            res = op1 & op2
+        elif operation == ALUOperations.Or:
+            res = op1 | op2
+        elif operation == ALUOperations.Xor:
+            res = op1 ^ op2
+        else:
+            raise WrongImplementationError("Operation not implemented ")
+        return res
+
+
+
+
+
+
+
+
+
 
 
 
