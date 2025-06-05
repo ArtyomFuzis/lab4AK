@@ -1,7 +1,8 @@
 from enum import Enum
 class WrongImplementationError(Exception):
     pass
-
+class ForbiddenAddress(Exception):
+    pass
 class ALUOperations(Enum):
     Add = 0
     Sub = 1
