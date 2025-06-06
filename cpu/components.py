@@ -1,7 +1,7 @@
 import queue
 from typing import Callable
 
-from .utils import WrongImplementationError, ALUOperations, ForbiddenAddress
+from .utils import WrongImplementationError, ALUOperations, ForbiddenAddress, SharedMemory
 
 
 class Latch:
@@ -53,8 +53,8 @@ class MemoryUnit:
     __input_data: bytes|None
     __out_io_val: bytes
 
-    def __init__(self, bus_op: DataBus, bus_address: DataBus, bus_in: DataBus, bus_out: DataBus, size: int = 0x10000, bus_size: int = 4):
-        self.__data_arr = bytearray(size)
+    def __init__(self, bus_op: DataBus, bus_address: DataBus, bus_in: DataBus, bus_out: DataBus, data_arr: SharedMemory, bus_size: int = 4):
+        self.__data_arr = data_arr.arr
         self.__bus_op = bus_op
         self.__bus_address = bus_address
         self.__bus_in = bus_in
@@ -71,6 +71,9 @@ class MemoryUnit:
             raise WrongImplementationError(
                 "In bus size: " + str(self.__bus_out.get_size()) + " does not equals " + str(self.__size_bus))
         self.__bus_out.bind_provider(self.get_value)
+
+
+
     out_val: bytes
 
     def get_control_latch(self) -> Latch:
@@ -86,7 +89,7 @@ class MemoryUnit:
             if self.__io_mode and addr == 0x0020:
                 raise ForbiddenAddress("Input port can't be used for output")
             elif self.__io_mode and addr == 0x0021:
-                self.__out_io_val = self.__input_data
+                self.__out_io_val = self.__bus_in.get_data()
                 self.__io_out_l.perform()
             else:
                 in_data = self.__bus_in.get_data()
@@ -97,6 +100,7 @@ class MemoryUnit:
            elif self.__io_mode and addr == 0x0020:
                self.out_val = self.__input_data
                self.__input_data = None
+               self.__inp_got = False
            else:
             self.out_val = self.__data_arr[addr:addr+self.__size_bus]
 
@@ -120,11 +124,13 @@ class MemoryUnit:
     def __get_io_output_value(self) -> bytes:
         return self.__out_io_val
 
-    def bind_input_io(self, b_data: DataBus, b_ready: DataBus) -> Latch:
+    def bind_input_io(self, b_data: DataBus, b_ready: DataBus) -> None:
         self.__io_mode = True
         self.__io_in_data = b_data
         self.__io_in_r = b_ready
         self.__io_in_r.bind_provider(self.__io_in_state)
+
+    def get_input_latch(self) -> Latch:
         return Latch(self.__init_int)
 
     def bind_int_buses(self, b_int_got: DataBus, b_int_allow: DataBus) -> None:
@@ -268,6 +274,14 @@ class ALU:
             res = op1 | op2
         elif operation == ALUOperations.Xor:
             res = op1 ^ op2
+        elif operation == ALUOperations.Inc4:
+            res = op1 + 4
+        elif operation == ALUOperations.Dec4:
+            res = op1 - 4
+        elif operation == ALUOperations.Inc4r:
+            res = op2 + 4
+        elif operation == ALUOperations.Dec4r:
+            res = op2 - 4
         else:
             raise WrongImplementationError("Operation not implemented ")
         return res

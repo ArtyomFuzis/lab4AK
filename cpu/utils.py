@@ -16,3 +16,11 @@ class ALUOperations(Enum):
     And = 9
     Or = 10
     Xor = 11
+    Inc4 = 12
+    Dec4 = 13
+    Inc4r = 14
+    Dec4r = 15
+
+class SharedMemory:
+    def __init__(self, mem_size:int = 0x10000):
+        self.arr = bytearray(mem_size)

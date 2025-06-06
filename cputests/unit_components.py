@@ -1,6 +1,8 @@
 import unittest
 
-from cpu.components import DataBus, MemoryUnit, Latch, Register, MultiPlex, ALU
+from cpu.components import DataBus, MemoryUnit, Register, MultiPlex, ALU
+from cpu.modules import ExternalDevice1, ExternalDevice2
+from cpu.utils import SharedMemory
 
 
 class MemoryUnitTestCase(unittest.TestCase):
@@ -9,8 +11,9 @@ class MemoryUnitTestCase(unittest.TestCase):
         b_mem_out = DataBus(4)
         b_data_op = DataBus(1)
         b_alu_out = DataBus(4)
-        data_memory_unit = MemoryUnit(b_data_op, b_ar, b_alu_out, b_mem_out)
-        l_ctrl = data_memory_unit.get_control_latch()
+        mem = SharedMemory()
+        self.data_memory_unit = MemoryUnit(b_data_op, b_ar, b_alu_out, b_mem_out, mem)
+        l_ctrl = self.data_memory_unit.get_control_latch()
         self.exec = l_ctrl.perform
         self.perf = lambda: b_mem_out.get_data()
         self.addr = (0).to_bytes(4)
@@ -36,6 +39,82 @@ class MemoryUnitTestCase(unittest.TestCase):
     def test_zero(self):
         self.exec()
         self.assertEqual(0, int.from_bytes(self.perf()))
+
+    def ioSetUp(self):
+        self.ex1 = ExternalDevice1(self.data_memory_unit.get_input_latch())
+        self.ex2 = ExternalDevice2()
+        self.data_memory_unit.bind_input_io(self.ex1.b_io_d_1, self.ex1.b_io_r_1)
+        self.data_memory_unit.bind_output_io(self.ex2.b_io_d_2, self.ex2.b_io_r_2, self.ex2.l_io_out)
+        self.b_int_allow = DataBus(1)
+        self.b_int_got = DataBus(1)
+        self.data_memory_unit.bind_int_buses(self.b_int_got, self.b_int_allow)
+
+    def test_output_to_io(self):
+        self.ioSetUp()
+        self.addr = (0x0021).to_bytes(4)
+        self.op = (1).to_bytes(1)
+        self.inp = (1023).to_bytes(4)
+        self.exec()
+        self.assertEqual(1023, int.from_bytes(self.ex2.cu.get_data(), signed=True))
+
+    def test_output_to_io_massive(self):
+        self.ioSetUp()
+        self.addr = (0x0021).to_bytes(4)
+        self.op = (1).to_bytes(1)
+        self.inp = (-5646854).to_bytes(4, signed=True)
+        self.exec()
+        self.assertEqual(-5646854, int.from_bytes(self.ex2.cu.get_data(), signed=True))
+        self.inp = (123).to_bytes(4, signed=True)
+        self.exec()
+        self.inp = (486865).to_bytes(4, signed=True)
+        self.exec()
+        self.assertEqual(123, int.from_bytes(self.ex2.cu.get_data(), signed=True))
+        self.assertEqual(486865, int.from_bytes(self.ex2.cu.get_data(), signed=True))
+        self.assertEqual(None, self.ex2.cu.get_data())
+
+    def test_input_from_io(self):
+        self.ioSetUp()
+        self.b_int_allow.bind_provider(lambda: (1^int.from_bytes(self.b_int_got.get_data())).to_bytes(1))
+        self.addr = (0x0020).to_bytes(4)
+        self.op = (0).to_bytes(1)
+        self.ex1.cu.post_data()
+        self.ex1.cu.post_data()
+        self.ex1.cu.post_data()
+        self.assertEqual(0, int.from_bytes(self.b_int_got.get_data(), signed=True))
+        self.ex1.cu.post_data((486865).to_bytes(4, signed=True))
+        self.assertEqual(1, int.from_bytes(self.b_int_got.get_data(), signed=True))
+        self.ex1.cu.post_data((-89952).to_bytes(4, signed=True))
+        self.assertEqual(1, int.from_bytes(self.b_int_got.get_data(), signed=True))
+        self.exec()
+        self.assertEqual( 486865, int.from_bytes(self.perf(), signed=True))
+        self.assertEqual(0, int.from_bytes(self.b_int_got.get_data(), signed=True))
+        self.ex1.cu.post_data()
+        self.ex1.cu.post_data()
+        self.ex1.cu.post_data()
+        self.assertEqual(1, int.from_bytes(self.b_int_got.get_data(), signed=True))
+        self.exec()
+        self.assertEqual(-89952, int.from_bytes(self.perf(), signed=True))
+        self.assertEqual(0, int.from_bytes(self.b_int_got.get_data(), signed=True))
+        self.ex1.cu.post_data()
+        self.ex1.cu.post_data()
+        self.ex1.cu.post_data()
+        self.assertEqual(0, int.from_bytes(self.b_int_got.get_data(), signed=True))
+
+    def test_full_io(self):
+        self.ioSetUp()
+        self.b_int_allow.bind_provider(lambda: (1 ^ int.from_bytes(self.b_int_got.get_data())).to_bytes(1))
+        self.addr = (0x0020).to_bytes(4)
+        self.op = (0).to_bytes(1)
+        self.ex1.cu.post_data((682394678).to_bytes(4, signed=True))
+        self.assertEqual(1, int.from_bytes(self.b_int_got.get_data(), signed=True))
+        self.exec()
+        self.inp = self.perf()
+        self.assertEqual(0, int.from_bytes(self.b_int_got.get_data(), signed=True))
+        self.addr = (0x0021).to_bytes(4)
+        self.op = (1).to_bytes(1)
+        self.exec()
+        self.assertEqual(682394678, int.from_bytes(self.ex2.cu.get_data(), signed=True))
+
 
 class RegisterTestCase(unittest.TestCase):
     def setUp(self):
@@ -276,9 +355,37 @@ class ALUTestCase(unittest.TestCase):
         self.assertEqual(0b0010, res[1])
         self.assertEqual(-42330, res[0])
 
+    def test_inc4(self):
+        self.inp1 = (-1895).to_bytes(4, signed=True)
+        self.inp2 = (41535).to_bytes(4, signed=True)
+        self.op = (0b00001100).to_bytes(1)
+        res = self.perf()
+        self.assertEqual(0b0010, res[1])
+        self.assertEqual(-1891, res[0])
 
+    def test_dec4(self):
+        self.inp1 = (-1895).to_bytes(4, signed=True)
+        self.inp2 = (41535).to_bytes(4, signed=True)
+        self.op = (0b00001101).to_bytes(1)
+        res = self.perf()
+        self.assertEqual(0b0010, res[1])
+        self.assertEqual(-1899, res[0])
 
+    def test_inc4_r(self):
+        self.inp1 = (-1895).to_bytes(4, signed=True)
+        self.inp2 = (41535).to_bytes(4, signed=True)
+        self.op = (0b00001110).to_bytes(1)
+        res = self.perf()
+        self.assertEqual(0b0000, res[1])
+        self.assertEqual(41539, res[0])
 
+    def test_dec4_r(self):
+        self.inp1 = (-1895).to_bytes(4, signed=True)
+        self.inp2 = (41535).to_bytes(4, signed=True)
+        self.op = (0b00001111).to_bytes(1)
+        res = self.perf()
+        self.assertEqual(0b0000, res[1])
+        self.assertEqual(41531, res[0])
 
 
 
