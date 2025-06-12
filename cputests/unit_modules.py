@@ -1,6 +1,6 @@
 import unittest
 
-from cpu.modules import ExternalDevice1, ExternalDevice2, MainDataPath
+from cpu.modules import ExternalDevice1, ExternalDevice2, MainDataPath, MainControlUnit
 from cpu.utils import SharedMemory
 
 
@@ -67,7 +67,7 @@ class MainDataPathTestCase(unittest.TestCase):
     def test_inc(self):
         self.b_alu_op = (8).to_bytes(1, signed=False)
         self.b_cr_arg = (4567829).to_bytes(4, signed=True)
-        self.b_alu_choice = (2).to_bytes(1, signed=False)
+        self.b_alu_choice = (0).to_bytes(1, signed=False)
         self.latch_ac()
         self.assertEqual(4567829, int.from_bytes(self.dp.b_alu_ac.get_data(), signed=True))
 
@@ -77,7 +77,7 @@ class MainDataPathTestCase(unittest.TestCase):
 
         self.b_alu_op = (8).to_bytes(1, signed=False)
         self.b_cr_arg = (0x0021).to_bytes(4, signed=True)
-        self.b_alu_choice = (2).to_bytes(1, signed=False)
+        self.b_alu_choice = (0).to_bytes(1, signed=False)
         self.latch_ar()
         self.assertEqual(0x0021, int.from_bytes(self.dp.b_ar.get_data(), signed=False))
 
@@ -98,7 +98,7 @@ class MainDataPathTestCase(unittest.TestCase):
     def load_mem_cr_addr(self, addr: int):
         self.b_alu_op = (8).to_bytes(1, signed=False)
         self.b_cr_arg = addr.to_bytes(4, signed=True)
-        self.b_alu_choice = (2).to_bytes(1, signed=False)
+        self.b_alu_choice = (0).to_bytes(1, signed=False)
         self.latch_ar()
         self.b_data_op = (0).to_bytes(1, signed=False)
         self.latch_data()
@@ -135,6 +135,58 @@ class MainDataPathTestCase(unittest.TestCase):
         self.b_data_op = (1).to_bytes(1, signed=False)
         self.latch_data()
         self.assertEqual(0x0064, int.from_bytes(self.mem.arr[0x0050:0x0054], signed=True))
+
+class MainControlUnitTestCase(unittest.TestCase):
+    def setUp(self):
+        self.mem = SharedMemory()
+        self.dp = MainDataPath(self.mem)
+        self.cmem = SharedMemory()
+        self.cu = MainControlUnit(self.dp, self.cmem)
+
+    def doTick(self):
+        if self.cu.id.stop:
+            return
+        self.cu.id.tick()
+        print(f"ac: {self.dp.b_alu_ac.get_data().hex()} ar: {self.dp.b_ar.get_data().hex()} pc: {self.cu.b_pc.get_data().hex()} cr: {self.cu.b_cmd.get_data().hex()}")
+
+    def test_simple(self):
+        self.cmem.arr[0:5] = [0x40, 0x11, 0x22, 0x33, 0x44]
+        self.cmem.arr[5:6] = [0x01]
+        self.doTick()
+        self.doTick()
+        self.doTick()
+        self.doTick()
+        self.assertEqual("11223345",self.dp.b_alu_ac.get_data().hex())
+
+    def test_mem(self):
+        self.cmem.arr[0:5] = [0x40, 0x11, 0x22, 0x33, 0x44]
+        self.cmem.arr[5:6] = [0x01]
+        self.cmem.arr[6:11] = [0x6B, 0x00, 0x00, 0x00, 0x10]
+        self.cmem.arr[11:16] = [0x40, 0x00, 0x00, 0x00, 0x00]
+        self.cmem.arr[16:21] = [0x60, 0x00, 0x00, 0x00, 0x10]
+        for i in range(11):
+            self.doTick()
+        self.assertEqual("11223345",self.dp.b_alu_ac.get_data().hex())
+
+    def test_cycle(self):
+        self.cmem.arr[0:5] =   [0x40, 0x00, 0x00, 0x00, 0x0A] #LD 10
+        self.cmem.arr[5:10] =  [0x6B, 0x00, 0x00, 0x00, 0x10] #ST 0x10
+        self.cmem.arr[10:15] = [0x40, 0x00, 0x00, 0x04, 0x00] #LD 1024
+        self.cmem.arr[15:20] = [0x6B, 0x00, 0x00, 0x00, 0x30] #ST 0x30
+        self.cmem.arr[20:25] = [0x60, 0x00, 0x00, 0x00, 0x30] #LD 0x30
+        self.cmem.arr[25:30] = [0x42, 0x00, 0x00, 0x00, 0x7D] #SUB 125
+        self.cmem.arr[30:35] = [0x6B, 0x00, 0x00, 0x00, 0x30] #ST 0x30
+        self.cmem.arr[35:40] = [0x60, 0x00, 0x00, 0x00, 0x10] #LD 0x10
+        self.cmem.arr[40:41] = [0x02]                         #DEC
+        self.cmem.arr[41:46] = [0x6B, 0x00, 0x00, 0x00, 0x10] #ST 0x10
+        self.cmem.arr[46:51] = [0x4D, 0x00, 0x00, 0x00, 0x14] #JNZ 20
+        self.cmem.arr[51:52] = [0x07]                         #HALT
+        for i in range(200):
+            self.doTick()
+        self.assertEqual("ffffff1e", self.mem.arr[0x30:0x34].hex())
+
+
+
 
 
 

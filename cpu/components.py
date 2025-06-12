@@ -1,7 +1,7 @@
 import queue
 from typing import Callable
 
-from .utils import WrongImplementationError, ALUOperations, ForbiddenAddress, SharedMemory
+from .utils import WrongImplementationError, ALUOperations, ForbiddenAddress, SharedMemory, CUState
 
 
 class Latch:
@@ -62,8 +62,8 @@ class MemoryUnit:
         self.__size_bus = bus_size
         self.__io_mode = False
         self.__inp_got = False
-        if self.__bus_address.get_size() != self.__size_bus:
-            raise WrongImplementationError("Addr bus size: " + str(self.__bus_address.get_size()) + " does not equals " + str(self.__size_bus))
+        # if self.__bus_address.get_size() != self.__size_bus:
+        #     raise WrongImplementationError("Addr bus size: " + str(self.__bus_address.get_size()) + " does not equals " + str(self.__size_bus))
         if self.__bus_in.get_size() != self.__size_bus:
             raise WrongImplementationError(
                 "In bus size: " + str(self.__bus_in.get_size()) + " does not equals " + str(self.__size_bus))
@@ -206,7 +206,7 @@ class ALU:
     def perform(self):
         op_code_full = int.from_bytes(self.__b_op.get_data())
         op_code_op = op_code_full & 0b00001111
-        flg_byte  = op_code_full & 0b00010000 != 0
+        flg_byte   = op_code_full & 0b00010000 != 0
         flg_inc    = op_code_full & 0b00100000 != 0
         flg_dec    = op_code_full & 0b01000000 != 0
         flg_inv    = op_code_full & 0b10000000 != 0
@@ -334,6 +334,502 @@ class DeviceControlUnitOutput:
             return None
         else:
             return self.output_queue.get()
+
+
+class SimpleAction:
+    def __init__(self, b_in: DataBus, b_out: DataBus, action: Callable[[bytes],bytes]):
+        self.__b_in = b_in
+        self.__b_out = b_out
+        self.__action = action
+        self.__b_out.bind_provider(lambda: self.__action(self.__b_in.get_data()))
+
+class BiAction:
+    def __init__(self, b_in1: DataBus,b_in2: DataBus, b_out: DataBus, action: Callable[[bytes,bytes],bytes]):
+        self.__b_in1 = b_in1
+        self.__b_in2 = b_in2
+        self.__b_out = b_out
+        self.__action = action
+        self.__b_out.bind_provider(lambda: self.__action(self.__b_in1.get_data(), self.__b_in2.get_data()))
+
+class InstructionDecoder:
+    def __init__(self,
+                 l_pc: Latch,
+                 l_cdata: Latch,
+                 l_cr: Latch,
+                 l_ra: Latch,
+                 l_data: Latch,
+                 l_ac: Latch,
+                 l_ar: Latch,
+                 l_cv: Latch,
+                 b_cmd: DataBus,
+                 b_pc_choice: DataBus,
+                 b_cr_choice: DataBus,
+                 b_alu_choice: DataBus,
+                 b_alu_op: DataBus,
+                 b_alu_flag: DataBus,
+                 b_data_op: DataBus,
+                 b_int_got: DataBus,
+                 b_int_allow: DataBus,
+                 b_cv_nxt: DataBus,
+                 b_cv_state: DataBus
+                 ):
+
+        self.__l_pc = l_pc
+        self.__l_cdata = l_cdata
+        self.__l_cr = l_cr
+        self.__l_ra = l_ra
+        self.__l_data = l_data
+        self.__l_ac = l_ac
+        self.__l_ar = l_ar
+        self.__l_cv = l_cv
+
+        #in buses
+        self.__b_cmd = b_cmd
+        self.__b_int_got = b_int_got
+        self.__b_alu_flag = b_alu_flag
+        self.__b_cv_state = b_cv_state
+
+        #out buses
+        self.__b_pc_choice = b_pc_choice
+        self.__b_cr_choice = b_cr_choice
+        self.__b_alu_choice = b_alu_choice
+        self.__b_alu_op = b_alu_op
+        self.__b_alu_flag = b_alu_flag
+        self.__b_data_op = b_data_op
+        self.__b_int_allow = b_int_allow
+        self.__b_cv_nxt = b_cv_nxt
+
+        self.pc_choice = (0).to_bytes(1, signed=False)
+        self.__b_pc_choice.bind_provider(lambda: self.pc_choice)
+
+        self.cr_choice = (0).to_bytes(1, signed=False)
+        self.__b_cr_choice.bind_provider(lambda: self.cr_choice)
+
+        self.alu_choice = (0).to_bytes(1, signed=False)
+        self.__b_alu_choice.bind_provider(lambda: self.alu_choice)
+
+        self.alu_op = (0).to_bytes(1, signed=False)
+        self.__b_alu_op.bind_provider(lambda: self.alu_op)
+
+        self.data_op = (0).to_bytes(1, signed=False)
+        self.__b_data_op.bind_provider(lambda: self.data_op)
+
+        self.cv_nxt = (0).to_bytes(1, signed=False)
+        self.__b_cv_nxt.bind_provider(lambda: self.cv_nxt)
+
+        self.interception = 0
+        self.stop = False
+        self.state = CUState.Start
+        self.ticks = queue.Queue()
+
+        self.__b_int_allow.bind_provider(lambda: (1 & (1 ^ (int.from_bytes(self.__b_int_got.get_data()) | int.from_bytes(self.__b_cv_state.get_data()) | self.interception))).to_bytes(1))
+
+    def put_to_ticks(self, ticks: list[Callable[[],None]]) -> None:
+        for el in ticks:
+            self.ticks.put(el)
+
+    def inc(self) -> list[Callable[[],None]]:
+        def tick1() -> None:
+            self.alu_op = (0b00100111).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+        return [tick1]
+
+    def dec(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_op = (0b01000111).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def inc4(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_op = (0b00001100).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def dec4(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_op = (0b00001101).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def inv(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_op = (0b10000111).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def neg(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_op = (0b11000111).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def ld_imm(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_choice =  (0).to_bytes(1, signed=False)
+            self.alu_op = (0b00001000).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def add_imm(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_choice =  (0).to_bytes(1, signed=False)
+            self.alu_op = (0b00000000).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def sub_imm(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_choice =  (0).to_bytes(1, signed=False)
+            self.alu_op = (0b00000001).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def and_imm(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_choice =  (0).to_bytes(1, signed=False)
+            self.alu_op = (0b00001001).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def or_imm(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_choice =  (0).to_bytes(1, signed=False)
+            self.alu_op = (0b00001010).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def xor_imm(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_choice =  (0).to_bytes(1, signed=False)
+            self.alu_op = (0b00001011).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def shiftl_imm(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_choice =  (0).to_bytes(1, signed=False)
+            self.alu_op = (0b00000010).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def shiftr_imm(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_choice =  (0).to_bytes(1, signed=False)
+            self.alu_op = (0b00000011).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def mul_imm(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_choice =  (0).to_bytes(1, signed=False)
+            self.alu_op = (0b00000101).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def div_imm(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_choice =  (0).to_bytes(1, signed=False)
+            self.alu_op = (0b00000100).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def rem_imm(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.alu_choice =  (0).to_bytes(1, signed=False)
+            self.alu_op = (0b00000110).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1]
+
+    def ld_addr(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.data_op = (0).to_bytes(1, signed=False)
+            self.__l_data.perform()
+
+        def tick2() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00001000).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1, tick2]
+
+    def st_addr(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.data_op = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00000111).to_bytes(1, signed=False)
+            self.__l_data.perform()
+
+        return [tick1]
+
+    def add_addr(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.data_op = (0).to_bytes(1, signed=False)
+            self.__l_data.perform()
+
+        def tick2() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00000000).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1, tick2]
+
+    def sub_addr(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.data_op = (0).to_bytes(1, signed=False)
+            self.__l_data.perform()
+
+        def tick2() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00000001).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1, tick2]
+
+    def and_addr(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.data_op = (0).to_bytes(1, signed=False)
+            self.__l_data.perform()
+
+        def tick2() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00001001).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1, tick2]
+
+    def or_addr(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.data_op = (0).to_bytes(1, signed=False)
+            self.__l_data.perform()
+
+        def tick2() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00001010).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1, tick2]
+
+    def xor_addr(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.data_op = (0).to_bytes(1, signed=False)
+            self.__l_data.perform()
+
+        def tick2() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00001011).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1, tick2]
+
+    def shiftl_addr(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.data_op = (0).to_bytes(1, signed=False)
+            self.__l_data.perform()
+
+        def tick2() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00000010).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1, tick2]
+
+    def shiftr_addr(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.data_op = (0).to_bytes(1, signed=False)
+            self.__l_data.perform()
+
+        def tick2() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00000011).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1, tick2]
+
+    def mul_addr(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.data_op = (0).to_bytes(1, signed=False)
+            self.__l_data.perform()
+
+        def tick2() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00000101).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1, tick2]
+
+    def div_addr(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.data_op = (0).to_bytes(1, signed=False)
+            self.__l_data.perform()
+
+        def tick2() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00000100).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1, tick2]
+
+    def rem_addr(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.data_op = (0).to_bytes(1, signed=False)
+            self.__l_data.perform()
+
+        def tick2() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00000110).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [tick1, tick2]
+
+    def jump(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.pc_choice = (4).to_bytes(1, signed=False)
+            self.__l_pc.perform()
+
+        return [tick1]
+
+    def jz(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            if int.from_bytes(self.__b_alu_flag.get_data()) & 1 == 0:
+                return
+            self.pc_choice = (4).to_bytes(1, signed=False)
+            self.__l_pc.perform()
+
+        return [tick1]
+
+    def jnz(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            if int.from_bytes(self.__b_alu_flag.get_data()) & 1 != 0:
+                return
+            self.pc_choice = (4).to_bytes(1, signed=False)
+            self.__l_pc.perform()
+
+        return [tick1]
+
+    def halt(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            self.stop = True
+
+        return [tick1]
+
+    def tick(self) -> None:
+        if self.stop:
+            return
+        if self.state == CUState.Start:
+            #TODO Interception & Vector
+            self.__l_cdata.perform()
+            self.__l_cr.perform()
+            command = int.from_bytes(self.__b_cmd.get_data()[0:1])
+            cmd_pref = (command & 0xC0) >> 6
+            cmd_last = command & 0x3F
+            if command == 0:
+                return
+            if cmd_pref == 0:
+                self.pc_choice = (2).to_bytes(1, signed=False)
+                self.__l_pc.perform()
+                if cmd_last == 1:
+                    self.put_to_ticks(self.inc())
+                elif cmd_last == 2:
+                    self.put_to_ticks(self.dec())
+                elif cmd_last == 3:
+                    self.put_to_ticks(self.inc4())
+                elif cmd_last == 4:
+                    self.put_to_ticks(self.dec4())
+                elif cmd_last == 5:
+                    self.put_to_ticks(self.inv())
+                elif cmd_last == 6:
+                    self.put_to_ticks(self.neg())
+                elif cmd_last == 7:
+                    self.put_to_ticks(self.halt())
+            elif cmd_pref == 1:
+                self.pc_choice = (0).to_bytes(1, signed=False)
+                self.__l_pc.perform()
+                cmd_last = command & 0x1F
+                cmd_mode = (command & 0x20) >> 5
+                if cmd_mode == 0:
+                    self.cr_choice = (1).to_bytes(1, signed=False)
+                    if cmd_last == 0x0:
+                        self.put_to_ticks(self.ld_imm())
+                    elif cmd_last == 0x1:
+                        self.put_to_ticks(self.add_imm())
+                    elif cmd_last == 0x2:
+                        self.put_to_ticks(self.sub_imm())
+                    elif cmd_last == 0x3:
+                        self.put_to_ticks(self.and_imm())
+                    elif cmd_last == 0x4:
+                        self.put_to_ticks(self.or_imm())
+                    elif cmd_last == 0x5:
+                        self.put_to_ticks(self.xor_imm())
+                    elif cmd_last == 0x6:
+                        self.put_to_ticks(self.shiftl_imm())
+                    elif cmd_last == 0x7:
+                        self.put_to_ticks(self.shiftr_imm())
+                    elif cmd_last == 0x8:
+                        self.put_to_ticks(self.mul_imm())
+                    elif cmd_last == 0x9:
+                        self.put_to_ticks(self.div_imm())
+                    elif cmd_last == 0xa:
+                        self.put_to_ticks(self.rem_imm())
+                    elif cmd_last == 0xb:
+                        self.put_to_ticks(self.jump())
+                    elif cmd_last == 0xc:
+                        self.put_to_ticks(self.jz())
+                    elif cmd_last == 0xd:
+                        self.put_to_ticks(self.jnz())
+
+                elif cmd_mode == 1:
+                    self.cr_choice = (1).to_bytes(1, signed=False)
+                    self.alu_choice = (0).to_bytes(1, signed=False)
+                    self.alu_op = (0b00001000).to_bytes(1, signed=False)
+                    self.__l_ar.perform()
+                    if cmd_last == 0x0:
+                        self.put_to_ticks(self.ld_addr())
+                    if cmd_last == 0x1:
+                        self.put_to_ticks(self.add_addr())
+                    if cmd_last == 0x2:
+                        self.put_to_ticks(self.sub_addr())
+                    if cmd_last == 0x3:
+                        self.put_to_ticks(self.and_addr())
+                    if cmd_last == 0x4:
+                        self.put_to_ticks(self.or_addr())
+                    if cmd_last == 0x5:
+                        self.put_to_ticks(self.xor_addr())
+                    if cmd_last == 0x6:
+                        self.put_to_ticks(self.shiftl_addr())
+                    if cmd_last == 0x7:
+                        self.put_to_ticks(self.shiftr_addr())
+                    if cmd_last == 0x8:
+                        self.put_to_ticks(self.mul_addr())
+                    if cmd_last == 0x9:
+                        self.put_to_ticks(self.div_addr())
+                    if cmd_last == 0x0a:
+                        self.put_to_ticks(self.rem_addr())
+                    elif cmd_last == 0x0b:
+                        self.put_to_ticks(self.st_addr())
+
+            self.state = CUState.Run
+
+        elif self.state == CUState.Run:
+            self.ticks.get(block=False)()
+
+            if self.ticks.empty():
+                self.state = CUState.Start
 
 
 

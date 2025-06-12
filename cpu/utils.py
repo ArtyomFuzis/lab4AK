@@ -1,8 +1,10 @@
 from enum import Enum
 class WrongImplementationError(Exception):
     pass
+
 class ForbiddenAddress(Exception):
     pass
+
 class ALUOperations(Enum):
     Add = 0
     Sub = 1
@@ -24,3 +26,8 @@ class ALUOperations(Enum):
 class SharedMemory:
     def __init__(self, mem_size:int = 0x10000):
         self.arr = bytearray(mem_size)
+
+class CUState(Enum):
+    Start = 0
+    Run = 1
+    Finish = 2

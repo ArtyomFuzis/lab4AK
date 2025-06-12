@@ -1,6 +1,6 @@
 import unittest
 
-from cpu.components import DataBus, MemoryUnit, Register, MultiPlex, ALU
+from cpu.components import DataBus, MemoryUnit, Register, MultiPlex, ALU, SimpleAction, BiAction
 from cpu.modules import ExternalDevice1, ExternalDevice2
 from cpu.utils import SharedMemory
 
@@ -388,8 +388,38 @@ class ALUTestCase(unittest.TestCase):
         self.assertEqual(41531, res[0])
 
 
+class SimpleActionTestCase(unittest.TestCase):
+    def setUp(self):
+        self.inp = (0).to_bytes(4, signed=True)
+        self.bus_in = DataBus(4)
+        self.bus_out = DataBus(4)
+        self.bus_in.bind_provider(lambda: self.inp)
 
+    def testInc(self):
+        sa = SimpleAction(self.bus_in, self.bus_out, lambda x: (int.from_bytes(x, signed=True)+1).to_bytes(4, signed=True))
+        self.inp = (55).to_bytes(4, signed=True)
+        self.assertEqual(56, int.from_bytes(self.bus_out.get_data(), signed=True))
+        self.inp = (-33).to_bytes(4, signed=True)
+        self.assertEqual(-32, int.from_bytes(self.bus_out.get_data(), signed=True))
 
+class BiActionTestCase(unittest.TestCase):
+    def setUp(self):
+        self.inp1 = (0).to_bytes(4, signed=True)
+        self.inp2 = (0).to_bytes(4, signed=True)
+        self.bus_in1 = DataBus(4)
+        self.bus_in2 = DataBus(4)
+        self.bus_out = DataBus(4)
+        self.bus_in1.bind_provider(lambda: self.inp1)
+        self.bus_in2.bind_provider(lambda: self.inp2)
+
+    def testSum(self):
+        ba = BiAction(self.bus_in1, self.bus_in2, self.bus_out, lambda x, y: (int.from_bytes(x, signed=True)+int.from_bytes(y, signed=True)).to_bytes(4, signed=True))
+        self.inp1 = (55).to_bytes(4, signed=True)
+        self.inp2 = (45456).to_bytes(4, signed=True)
+        self.assertEqual(45511, int.from_bytes(self.bus_out.get_data(), signed=True))
+        self.inp1 = (-33).to_bytes(4, signed=True)
+        self.inp2 = (362).to_bytes(4, signed=True)
+        self.assertEqual(329, int.from_bytes(self.bus_out.get_data(), signed=True))
 
 
 
