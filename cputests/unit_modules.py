@@ -190,7 +190,7 @@ class MainControlUnitTestCase(unittest.TestCase):
         self.assertEqual("ffffff1e", self.mem.arr[0x30:0x34].hex())
         self.assertEqual("ffffff1e", self.dp.ex2.cu.get_data().hex())
 
-    def test_rel(self):
+    def test_ind(self):
         data = [
             [0x40, 0x00, 0x00, 0x00, 0xC0],
             [0x6B, 0x00, 0x00, 0x00, 0x90],
@@ -203,6 +203,19 @@ class MainControlUnitTestCase(unittest.TestCase):
         for i in range(70):
             self.doTick()
         self.assertEqual("0000feff", self.dp.b_alu_ac.get_data().hex())
+
+
+    def test_rel(self):
+        data = [
+            [0x40, 0x00, 0x00, 0x00, 0xCC],
+            [0x42, 0x00, 0x00, 0x00, 0x15],
+            [0x82, 0xFF, 0xF8],
+            [0x07]
+        ]
+        self.cmem.load_to_mem(data)
+        for i in range(70):
+            self.doTick()
+        self.assertEqual("fffffffa", self.dp.b_alu_ac.get_data().hex())
 
 
 

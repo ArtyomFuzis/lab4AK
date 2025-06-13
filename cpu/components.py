@@ -241,6 +241,7 @@ class ALU:
             z = 0 if res != 0 else 1
         self.__flg = int.to_bytes((c << 3) + (v << 2) + (n << 1) + z, 1)
         self.__out = int.to_bytes(res, 4, signed=False)
+        #print(f"{self.__flg.hex()} {self.__out.hex()}")
 
     def perform_operation(self, operation: ALUOperations, op1e: int, op2e: int, unsigned: bool) -> int:
         if unsigned:
@@ -700,7 +701,7 @@ class InstructionDecoder:
 
     def jlt(self) -> list[Callable[[], None]]:
         def tick1() -> None:
-            if int.from_bytes(self.__b_alu_flag.get_data()) & 2 != 0:
+            if int.from_bytes(self.__b_alu_flag.get_data()) & 2 == 0:
                 return
             self.pc_choice = (4).to_bytes(1, signed=False)
             self.__l_pc.perform()
@@ -847,9 +848,6 @@ class InstructionDecoder:
                 self.pc_choice = (1).to_bytes(1, signed=False)
                 self.__l_pc.perform()
                 self.cr_choice = (0).to_bytes(1, signed=False)
-                self.alu_choice = (0).to_bytes(1, signed=False)
-                self.alu_op = (0b00001000).to_bytes(1, signed=False)
-                self.__l_ar.perform()
                 if cmd_last == 0x00:
                     self.put_to_ticks(self.jz())
                 elif cmd_last == 0x01:
