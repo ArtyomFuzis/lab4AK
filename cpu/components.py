@@ -419,7 +419,7 @@ class InstructionDecoder:
 
         self.interception = 0
         self.stop = False
-        self.state = CUState.Start
+        self.state = CUState.PreStart
         self.ticks = queue.Queue()
 
         self.__b_int_allow.bind_provider(lambda: (1 & (1 ^ (int.from_bytes(self.__b_int_got.get_data()) | int.from_bytes(self.__b_cv_state.get_data()) | self.interception))).to_bytes(1))
@@ -427,6 +427,12 @@ class InstructionDecoder:
     def put_to_ticks(self, ticks: list[Callable[[],None]]) -> None:
         for el in ticks:
             self.ticks.put(el)
+
+    def tick_read(self) -> Callable[[],None]:
+        def tick1() -> None:
+            self.data_op = (0).to_bytes(1, signed=False)
+            self.__l_data.perform()
+        return tick1
 
     def inc(self) -> list[Callable[[],None]]:
         def tick1() -> None:
@@ -558,16 +564,12 @@ class InstructionDecoder:
         return [tick1]
 
     def ld_addr(self) -> list[Callable[[], None]]:
-        def tick1() -> None:
-            self.data_op = (0).to_bytes(1, signed=False)
-            self.__l_data.perform()
-
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00001000).to_bytes(1, signed=False)
             self.__l_ac.perform()
 
-        return [tick1, tick2]
+        return [self.tick_read(), tick2]
 
     def st_addr(self) -> list[Callable[[], None]]:
         def tick1() -> None:
@@ -590,112 +592,77 @@ class InstructionDecoder:
         return [tick1, tick2]
 
     def sub_addr(self) -> list[Callable[[], None]]:
-        def tick1() -> None:
-            self.data_op = (0).to_bytes(1, signed=False)
-            self.__l_data.perform()
-
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00000001).to_bytes(1, signed=False)
             self.__l_ac.perform()
 
-        return [tick1, tick2]
+        return [self.tick_read(), tick2]
 
     def and_addr(self) -> list[Callable[[], None]]:
-        def tick1() -> None:
-            self.data_op = (0).to_bytes(1, signed=False)
-            self.__l_data.perform()
-
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00001001).to_bytes(1, signed=False)
             self.__l_ac.perform()
 
-        return [tick1, tick2]
+        return [self.tick_read(), tick2]
 
     def or_addr(self) -> list[Callable[[], None]]:
-        def tick1() -> None:
-            self.data_op = (0).to_bytes(1, signed=False)
-            self.__l_data.perform()
 
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00001010).to_bytes(1, signed=False)
             self.__l_ac.perform()
 
-        return [tick1, tick2]
+        return [self.tick_read(), tick2]
 
     def xor_addr(self) -> list[Callable[[], None]]:
-        def tick1() -> None:
-            self.data_op = (0).to_bytes(1, signed=False)
-            self.__l_data.perform()
-
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00001011).to_bytes(1, signed=False)
             self.__l_ac.perform()
 
-        return [tick1, tick2]
+        return [self.tick_read(), tick2]
 
     def shiftl_addr(self) -> list[Callable[[], None]]:
-        def tick1() -> None:
-            self.data_op = (0).to_bytes(1, signed=False)
-            self.__l_data.perform()
-
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00000010).to_bytes(1, signed=False)
             self.__l_ac.perform()
 
-        return [tick1, tick2]
+        return [self.tick_read(), tick2]
 
     def shiftr_addr(self) -> list[Callable[[], None]]:
-        def tick1() -> None:
-            self.data_op = (0).to_bytes(1, signed=False)
-            self.__l_data.perform()
-
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00000011).to_bytes(1, signed=False)
             self.__l_ac.perform()
 
-        return [tick1, tick2]
+        return [self.tick_read(), tick2]
 
     def mul_addr(self) -> list[Callable[[], None]]:
-        def tick1() -> None:
-            self.data_op = (0).to_bytes(1, signed=False)
-            self.__l_data.perform()
-
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00000101).to_bytes(1, signed=False)
             self.__l_ac.perform()
 
-        return [tick1, tick2]
+        return [self.tick_read(), tick2]
 
     def div_addr(self) -> list[Callable[[], None]]:
-        def tick1() -> None:
-            self.data_op = (0).to_bytes(1, signed=False)
-            self.__l_data.perform()
-
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00000100).to_bytes(1, signed=False)
             self.__l_ac.perform()
 
-        return [tick1, tick2]
+        return [self.tick_read(), tick2]
 
     def rem_addr(self) -> list[Callable[[], None]]:
-        def tick1() -> None:
-            self.data_op = (0).to_bytes(1, signed=False)
-            self.__l_data.perform()
-
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00000110).to_bytes(1, signed=False)
             self.__l_ac.perform()
 
-        return [tick1, tick2]
+        return [self.tick_read(), tick2]
 
     def jump(self) -> list[Callable[[], None]]:
         def tick1() -> None:
@@ -722,18 +689,64 @@ class InstructionDecoder:
 
         return [tick1]
 
+    def jgt(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            if int.from_bytes(self.__b_alu_flag.get_data()) & 2 != 0:
+                return
+            self.pc_choice = (4).to_bytes(1, signed=False)
+            self.__l_pc.perform()
+
+        return [tick1]
+
+    def jlt(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            if int.from_bytes(self.__b_alu_flag.get_data()) & 2 != 0:
+                return
+            self.pc_choice = (4).to_bytes(1, signed=False)
+            self.__l_pc.perform()
+
+        return [tick1]
+
     def halt(self) -> list[Callable[[], None]]:
         def tick1() -> None:
             self.stop = True
 
         return [tick1]
 
+    def ld_ind(self) -> list[Callable[[], None]]:
+        def tick2() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00001000).to_bytes(1, signed=False)
+            self.__l_ar.perform()
+
+        def tick4() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00001000).to_bytes(1, signed=False)
+            self.__l_ac.perform()
+
+        return [self.tick_read(), tick2, self.tick_read(),tick4]
+
+    def st_ind(self) -> list[Callable[[], None]]:
+        def tick2() -> None:
+            self.alu_choice = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00001000).to_bytes(1, signed=False)
+            self.__l_ar.perform()
+
+        def tick3() -> None:
+            self.data_op = (1).to_bytes(1, signed=False)
+            self.alu_op = (0b00000111).to_bytes(1, signed=False)
+            self.__l_data.perform()
+
+        return [self.tick_read(), tick2,tick3]
+
     def tick(self) -> None:
         if self.stop:
             return
-        if self.state == CUState.Start:
+        if self.state == CUState.PreStart:
             #TODO Interception & Vector
             self.__l_cdata.perform()
+            self.state = CUState.Start
+        elif self.state == CUState.Start:
             self.__l_cr.perform()
             command = int.from_bytes(self.__b_cmd.get_data()[0:1])
             cmd_pref = (command & 0xC0) >> 6
@@ -792,6 +805,10 @@ class InstructionDecoder:
                         self.put_to_ticks(self.jz())
                     elif cmd_last == 0xd:
                         self.put_to_ticks(self.jnz())
+                    elif cmd_last == 0xe:
+                        self.put_to_ticks(self.jgt())
+                    elif cmd_last == 0xf:
+                        self.put_to_ticks(self.jlt())
 
                 elif cmd_mode == 1:
                     self.cr_choice = (1).to_bytes(1, signed=False)
@@ -822,14 +839,31 @@ class InstructionDecoder:
                         self.put_to_ticks(self.rem_addr())
                     elif cmd_last == 0x0b:
                         self.put_to_ticks(self.st_addr())
-
+                    elif cmd_last == 0x0c:
+                        self.put_to_ticks(self.ld_ind())
+                    elif cmd_last == 0x0d:
+                        self.put_to_ticks(self.st_ind())
+            elif cmd_pref == 2:
+                self.pc_choice = (1).to_bytes(1, signed=False)
+                self.__l_pc.perform()
+                self.cr_choice = (0).to_bytes(1, signed=False)
+                self.alu_choice = (0).to_bytes(1, signed=False)
+                self.alu_op = (0b00001000).to_bytes(1, signed=False)
+                self.__l_ar.perform()
+                if cmd_last == 0x00:
+                    self.put_to_ticks(self.jz())
+                elif cmd_last == 0x01:
+                    self.put_to_ticks(self.jnz())
+                elif cmd_last == 0x02:
+                    self.put_to_ticks(self.jgt())
+                elif cmd_last == 0x03:
+                    self.put_to_ticks(self.jlt())
             self.state = CUState.Run
 
         elif self.state == CUState.Run:
             self.ticks.get(block=False)()
-
             if self.ticks.empty():
-                self.state = CUState.Start
+                self.state = CUState.PreStart
 
 
 

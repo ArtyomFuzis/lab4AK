@@ -156,6 +156,8 @@ class MainControlUnitTestCase(unittest.TestCase):
         self.doTick()
         self.doTick()
         self.doTick()
+        self.doTick()
+        self.doTick()
         self.assertEqual("11223345",self.dp.b_alu_ac.get_data().hex())
 
     def test_mem(self):
@@ -164,7 +166,7 @@ class MainControlUnitTestCase(unittest.TestCase):
         self.cmem.arr[6:11] = [0x6B, 0x00, 0x00, 0x00, 0x10]
         self.cmem.arr[11:16] = [0x40, 0x00, 0x00, 0x00, 0x00]
         self.cmem.arr[16:21] = [0x60, 0x00, 0x00, 0x00, 0x10]
-        for i in range(11):
+        for i in range(16):
             self.doTick()
         self.assertEqual("11223345",self.dp.b_alu_ac.get_data().hex())
 
@@ -180,10 +182,28 @@ class MainControlUnitTestCase(unittest.TestCase):
         self.cmem.arr[40:41] = [0x02]                         #DEC
         self.cmem.arr[41:46] = [0x6B, 0x00, 0x00, 0x00, 0x10] #ST 0x10
         self.cmem.arr[46:51] = [0x4D, 0x00, 0x00, 0x00, 0x14] #JNZ 20
-        self.cmem.arr[51:52] = [0x07]                         #HALT
-        for i in range(200):
+        self.cmem.arr[51:56] = [0x60, 0x00, 0x00, 0x00, 0x30] #LD 0x30
+        self.cmem.arr[56:61] = [0x6B, 0x00, 0x00, 0x00, 0x21] #ST 0x21
+        self.cmem.arr[61:62] = [0x07]                         #HALT
+        for i in range(300):
             self.doTick()
         self.assertEqual("ffffff1e", self.mem.arr[0x30:0x34].hex())
+        self.assertEqual("ffffff1e", self.dp.ex2.cu.get_data().hex())
+
+    def test_rel(self):
+        data = [
+            [0x40, 0x00, 0x00, 0x00, 0xC0],
+            [0x6B, 0x00, 0x00, 0x00, 0x90],
+            [0x40, 0x00, 0x00, 0xFE, 0xFF],
+            [0x6D, 0x00, 0x00, 0x00, 0x90],
+            [0x60, 0x00, 0x00, 0x00, 0xC0],
+            [0x07]
+        ]
+        self.cmem.load_to_mem(data)
+        for i in range(70):
+            self.doTick()
+        self.assertEqual("0000feff", self.dp.b_alu_ac.get_data().hex())
+
 
 
 

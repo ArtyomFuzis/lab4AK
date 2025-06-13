@@ -27,7 +27,14 @@ class SharedMemory:
     def __init__(self, mem_size:int = 0x10000):
         self.arr = bytearray(mem_size)
 
+    def load_to_mem(self, data: list[list[int]], start = 0) -> None:
+        res = []
+        for el in data:
+            for el2 in el:
+                res.append(el2)
+        self.arr[start:(start + len(res))] = res
+
 class CUState(Enum):
-    Start = 0
-    Run = 1
-    Finish = 2
+    PreStart = 0
+    Start = 1
+    Run = 2
