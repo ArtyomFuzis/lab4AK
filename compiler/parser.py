@@ -58,6 +58,8 @@ class Parser:
             reg_no_arg(0x06, cmd_arg, line)
         elif cmd == 'halt':
             reg_no_arg(0x07, cmd_arg, line)
+        elif cmd == 'ret':
+            reg_no_arg(0x08, cmd_arg, line)
         elif cmd == 'ld':
             reg_4_arg(0x40, cmd_arg, line)
         elif cmd == 'add':
