@@ -241,7 +241,6 @@ class ALU:
             z = 0 if res != 0 else 1
         self.__flg = int.to_bytes((c << 3) + (v << 2) + (n << 1) + z, 1)
         self.__out = int.to_bytes(res, 4, signed=False)
-        #print(f"{self.__flg.hex()} {self.__out.hex()}")
 
     def perform_operation(self, operation: ALUOperations, op1e: int, op2e: int, unsigned: bool) -> int:
         if unsigned:
@@ -362,17 +361,18 @@ class InstructionDecoder:
                  l_ac: Latch,
                  l_ar: Latch,
                  l_cv: Latch,
+                 l_flg: Latch,
                  b_cmd: DataBus,
                  b_pc_choice: DataBus,
                  b_cr_choice: DataBus,
                  b_alu_choice: DataBus,
                  b_alu_op: DataBus,
-                 b_alu_flag: DataBus,
                  b_data_op: DataBus,
                  b_int_got: DataBus,
                  b_int_allow: DataBus,
                  b_cv_nxt: DataBus,
-                 b_cv_state: DataBus
+                 b_cv_state: DataBus,
+                 b_flg: DataBus
                  ):
 
         self.__l_pc = l_pc
@@ -383,11 +383,12 @@ class InstructionDecoder:
         self.__l_ac = l_ac
         self.__l_ar = l_ar
         self.__l_cv = l_cv
+        self.__l_flg = l_flg
 
         #in buses
         self.__b_cmd = b_cmd
         self.__b_int_got = b_int_got
-        self.__b_alu_flag = b_alu_flag
+        self.__b_flg = b_flg
         self.__b_cv_state = b_cv_state
 
         #out buses
@@ -395,7 +396,6 @@ class InstructionDecoder:
         self.__b_cr_choice = b_cr_choice
         self.__b_alu_choice = b_alu_choice
         self.__b_alu_op = b_alu_op
-        self.__b_alu_flag = b_alu_flag
         self.__b_data_op = b_data_op
         self.__b_int_allow = b_int_allow
         self.__b_cv_nxt = b_cv_nxt
@@ -438,12 +438,14 @@ class InstructionDecoder:
     def inc(self) -> list[Callable[[],None]]:
         def tick1() -> None:
             self.alu_op = (0b00100111).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
         return [tick1]
 
     def dec(self) -> list[Callable[[], None]]:
         def tick1() -> None:
             self.alu_op = (0b01000111).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -451,6 +453,7 @@ class InstructionDecoder:
     def inc4(self) -> list[Callable[[], None]]:
         def tick1() -> None:
             self.alu_op = (0b00001100).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -458,6 +461,7 @@ class InstructionDecoder:
     def dec4(self) -> list[Callable[[], None]]:
         def tick1() -> None:
             self.alu_op = (0b00001101).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -465,6 +469,7 @@ class InstructionDecoder:
     def inv(self) -> list[Callable[[], None]]:
         def tick1() -> None:
             self.alu_op = (0b10000111).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -472,6 +477,7 @@ class InstructionDecoder:
     def neg(self) -> list[Callable[[], None]]:
         def tick1() -> None:
             self.alu_op = (0b11000111).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -480,6 +486,7 @@ class InstructionDecoder:
         def tick1() -> None:
             self.alu_choice =  (0).to_bytes(1, signed=False)
             self.alu_op = (0b00001000).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -488,6 +495,7 @@ class InstructionDecoder:
         def tick1() -> None:
             self.alu_choice =  (0).to_bytes(1, signed=False)
             self.alu_op = (0b00000000).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -496,14 +504,15 @@ class InstructionDecoder:
         def tick1() -> None:
             self.alu_choice =  (0).to_bytes(1, signed=False)
             self.alu_op = (0b00000001).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
-
         return [tick1]
 
     def and_imm(self) -> list[Callable[[], None]]:
         def tick1() -> None:
             self.alu_choice =  (0).to_bytes(1, signed=False)
             self.alu_op = (0b00001001).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -512,6 +521,7 @@ class InstructionDecoder:
         def tick1() -> None:
             self.alu_choice =  (0).to_bytes(1, signed=False)
             self.alu_op = (0b00001010).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -520,6 +530,7 @@ class InstructionDecoder:
         def tick1() -> None:
             self.alu_choice =  (0).to_bytes(1, signed=False)
             self.alu_op = (0b00001011).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -528,6 +539,7 @@ class InstructionDecoder:
         def tick1() -> None:
             self.alu_choice =  (0).to_bytes(1, signed=False)
             self.alu_op = (0b00000010).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -536,6 +548,7 @@ class InstructionDecoder:
         def tick1() -> None:
             self.alu_choice =  (0).to_bytes(1, signed=False)
             self.alu_op = (0b00000011).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -544,6 +557,7 @@ class InstructionDecoder:
         def tick1() -> None:
             self.alu_choice =  (0).to_bytes(1, signed=False)
             self.alu_op = (0b00000101).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -552,6 +566,7 @@ class InstructionDecoder:
         def tick1() -> None:
             self.alu_choice =  (0).to_bytes(1, signed=False)
             self.alu_op = (0b00000100).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -560,6 +575,7 @@ class InstructionDecoder:
         def tick1() -> None:
             self.alu_choice =  (0).to_bytes(1, signed=False)
             self.alu_op = (0b00000110).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [tick1]
@@ -568,6 +584,7 @@ class InstructionDecoder:
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00001000).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [self.tick_read(), tick2]
@@ -581,21 +598,19 @@ class InstructionDecoder:
         return [tick1]
 
     def add_addr(self) -> list[Callable[[], None]]:
-        def tick1() -> None:
-            self.data_op = (0).to_bytes(1, signed=False)
-            self.__l_data.perform()
-
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00000000).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
-        return [tick1, tick2]
+        return [self.tick_read(), tick2]
 
     def sub_addr(self) -> list[Callable[[], None]]:
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00000001).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [self.tick_read(), tick2]
@@ -604,6 +619,7 @@ class InstructionDecoder:
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00001001).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [self.tick_read(), tick2]
@@ -613,6 +629,7 @@ class InstructionDecoder:
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00001010).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [self.tick_read(), tick2]
@@ -621,6 +638,7 @@ class InstructionDecoder:
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00001011).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [self.tick_read(), tick2]
@@ -629,6 +647,7 @@ class InstructionDecoder:
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00000010).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [self.tick_read(), tick2]
@@ -637,6 +656,7 @@ class InstructionDecoder:
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00000011).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [self.tick_read(), tick2]
@@ -645,6 +665,7 @@ class InstructionDecoder:
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00000101).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [self.tick_read(), tick2]
@@ -653,6 +674,7 @@ class InstructionDecoder:
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00000100).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [self.tick_read(), tick2]
@@ -661,6 +683,7 @@ class InstructionDecoder:
         def tick2() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00000110).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [self.tick_read(), tick2]
@@ -674,7 +697,7 @@ class InstructionDecoder:
 
     def jz(self) -> list[Callable[[], None]]:
         def tick1() -> None:
-            if int.from_bytes(self.__b_alu_flag.get_data()) & 1 == 0:
+            if int.from_bytes(self.__b_flg.get_data()) & 1 == 0:
                 return
             self.pc_choice = (4).to_bytes(1, signed=False)
             self.__l_pc.perform()
@@ -683,7 +706,7 @@ class InstructionDecoder:
 
     def jnz(self) -> list[Callable[[], None]]:
         def tick1() -> None:
-            if int.from_bytes(self.__b_alu_flag.get_data()) & 1 != 0:
+            if int.from_bytes(self.__b_flg.get_data()) & 1 != 0:
                 return
             self.pc_choice = (4).to_bytes(1, signed=False)
             self.__l_pc.perform()
@@ -692,7 +715,7 @@ class InstructionDecoder:
 
     def jgt(self) -> list[Callable[[], None]]:
         def tick1() -> None:
-            if int.from_bytes(self.__b_alu_flag.get_data()) & 2 != 0:
+            if int.from_bytes(self.__b_flg.get_data()) & 2 != 0:
                 return
             self.pc_choice = (4).to_bytes(1, signed=False)
             self.__l_pc.perform()
@@ -701,7 +724,7 @@ class InstructionDecoder:
 
     def jlt(self) -> list[Callable[[], None]]:
         def tick1() -> None:
-            if int.from_bytes(self.__b_alu_flag.get_data()) & 2 == 0:
+            if int.from_bytes(self.__b_flg.get_data()) & 2 == 0:
                 return
             self.pc_choice = (4).to_bytes(1, signed=False)
             self.__l_pc.perform()
@@ -723,6 +746,7 @@ class InstructionDecoder:
         def tick4() -> None:
             self.alu_choice = (1).to_bytes(1, signed=False)
             self.alu_op = (0b00001000).to_bytes(1, signed=False)
+            self.__l_flg.perform()
             self.__l_ac.perform()
 
         return [self.tick_read(), tick2, self.tick_read(),tick4]
@@ -745,6 +769,8 @@ class InstructionDecoder:
             return
         if self.state == CUState.PreStart:
             #TODO Interception & Vector
+            #
+            #lambda: (1 & (1 ^ (int.from_bytes(self.__b_int_got.get_data()) | int.from_bytes(self.__b_cv_state.get_data()) | self.interception))).to_bytes(1))
             self.__l_cdata.perform()
             self.state = CUState.Start
         elif self.state == CUState.Start:
@@ -862,6 +888,11 @@ class InstructionDecoder:
             self.ticks.get(block=False)()
             if self.ticks.empty():
                 self.state = CUState.PreStart
+
+class ImmediateValue:
+    def __init__(self, bus_out:DataBus, value: bytes):
+        val = bytes(value)
+        bus_out.bind_provider(lambda: val)
 
 
 

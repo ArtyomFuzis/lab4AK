@@ -1,5 +1,5 @@
 from cpu.components import DataBus, Register, MultiPlex, ALU, DeviceControlUnitInput, Latch, DeviceControlUnitOutput, \
-    MemoryUnit, SimpleAction, BiAction, InstructionDecoder
+    MemoryUnit, SimpleAction, BiAction, InstructionDecoder, ImmediateValue
 from cpu.utils import SharedMemory
 
 
@@ -35,12 +35,15 @@ class MainDataPath:
         self.b_mem_out = DataBus(4)
         self.b_cr_arg = DataBus(4)
         self.b_data_op = DataBus(1)
+        self.b_flg = DataBus(1)
 
         self.ac = Register(self.b_alu_out, self.b_alu_ac, 4)
         self.ar = Register(self.b_alu_out, self.b_ar, 4)
+        self.flg = Register(self.b_alu_flag, self.b_flg, 1)
 
         self.l_ac = self.ac.get_control_latch()
         self.l_ar = self.ar.get_control_latch()
+        self.l_flg = self.flg.get_control_latch()
 
         self.mux = MultiPlex(self.b_alu_choice,self.b_alu_inp2, 4)
         self.mux.bind_inp(0, self.b_cr_arg)
@@ -75,6 +78,7 @@ class MainControlUnit:
         self.b_ra = DataBus(4)
         self.b_cv_nxt = DataBus(4)
         self.b_cv_state = DataBus(1)
+        self.b_int_addr = DataBus(4)
 
         self.ra = Register(self.b_pc, self.b_ra, 4)
         self.pc = Register(self.b_pc_new, self.b_pc, 4)
@@ -99,6 +103,7 @@ class MainControlUnit:
         self.sa_pc_0 = SimpleAction(self.b_pc, b_pc_0, lambda x: (int.from_bytes(x, signed=False)+5).to_bytes(4, signed=False))
         self.sa_pc_1 = SimpleAction(self.b_pc, b_pc_1, lambda x: (int.from_bytes(x, signed=False)+3).to_bytes(4, signed=False))
         self.sa_pc_2 = SimpleAction(self.b_pc, b_pc_2, lambda x: (int.from_bytes(x, signed=False)+1).to_bytes(4, signed=False))
+        self.iv_pc_5 = ImmediateValue(self.b_int_addr, (0x05).to_bytes(4, signed=False))
 
         self.mux_pc = MultiPlex(self.b_pc_choice, self.b_pc_new, 4)
         self.mux_pc.bind_inp(0, b_pc_0)
@@ -106,6 +111,7 @@ class MainControlUnit:
         self.mux_pc.bind_inp(2, b_pc_2)
         self.mux_pc.bind_inp(3, self.b_ra)
         self.mux_pc.bind_inp(4, self.dp.b_cr_arg)
+        self.mux_pc.bind_inp(5, self.b_int_addr)
 
         b_cr_arg_0 = DataBus(4)
         b_cr_arg_1 = DataBus(4)
@@ -126,17 +132,18 @@ class MainControlUnit:
             self.dp.l_ac,
             self.dp.l_ar,
             self.l_cv,
+            self.dp.l_flg,
             self.b_cmd,
             self.b_pc_choice,
             self.b_cr_choice,
             self.dp.b_alu_choice,
             self.dp.b_alu_op,
-            self.dp.b_alu_flag,
             self.dp.b_data_op,
             self.dp.b_int_got,
             self.dp.b_int_allow,
             self.b_cv_nxt,
-            self.b_cv_state
+            self.b_cv_state,
+            self.dp.b_flg
         )
 
 

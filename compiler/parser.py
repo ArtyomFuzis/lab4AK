@@ -1,7 +1,7 @@
 import re
 from enum import Enum
 
-from compiler.utils import WrongSyntaxError
+from utils import WrongSyntaxError
 
 
 class ParseState(Enum):
@@ -130,24 +130,37 @@ class Parser:
             raise WrongSyntaxError(f"Unknown command found in line: {line}.")
 
     @classmethod
-    def parse_data(cls, mem_type: str, value: str | None, line: int) -> None:
-        if value[0:2] == '0x':
-            true_arg = int.from_bytes(bytes.fromhex(value[2:]))
-        elif value.isdigit():
-            true_arg = int(value)
-        else:
-            true_arg = value
+    def parse_data(cls, mem_type: str, value: list[str]|None, line: int) -> None:
+        if value is None:
+            raise WrongSyntaxError(f"In line {line}: argument cannot be None.")
+
+        new_vals = []
+        for el in value:
+            if el[0:2] == '0x':
+                new_vals.append(int.from_bytes(bytes.fromhex(el[2:])))
+            elif el.isdigit():
+                new_vals.append(int(el))
+            elif el[0] == "'" and el[-1] == "'":
+                for el2 in el[1:-1]:
+                    new_vals.append(ord(el2))
+            elif el[0] == "'":
+                raise WrongSyntaxError(f"In line {line}: argument cannot be contain a whitespace or unclosed quotes.")
+            else:
+                new_vals.append(el)
+
         if mem_type == '.byte':
-            cls.data[cls.cur_addr_mem] = (true_arg, 1)
-            cls.cur_addr_mem += 1
+            for el in new_vals:
+                cls.data[cls.cur_addr_mem] = (el, 1)
+                cls.cur_addr_mem += 1
         elif mem_type == '.word':
-            cls.data[cls.cur_addr_mem] = (true_arg, 4)
-            cls.cur_addr_mem += 4
+            for el in new_vals:
+                cls.data[cls.cur_addr_mem] = (el, 4)
+                cls.cur_addr_mem += 4
         else:
             raise WrongSyntaxError(f"Unknown data type find in line {line}.")
 
     @classmethod
-    def parse_asm(cls, text: str):
+    def parse_asm(cls, text: str) -> (dict[int, int], dict[int,int]):
         split = text.lower().splitlines()
         int_sec = None
         start = None
@@ -160,12 +173,17 @@ class Parser:
         for i in range(1, len(split) + 1):
             line = split[i - 1]
             parts = re.split(r"\s+", line)
+            if len(parts) == 0:
+                continue
             if parts[-1] == '':
                 parts = parts[0:-1]
             if len(parts) == 0:
                 continue
-
-            elif len(parts) > 3:
+            if parts[0] == '':
+                parts = parts[1:]
+            if len(parts) == 0:
+                continue
+            elif len(parts) > 3 and cls.state != ParseState.SecData:
                 raise WrongSyntaxError(f"Too match terms in line {i}.")
 
             elif parts[0] != '.section' and cls.state == ParseState.No:
@@ -213,12 +231,12 @@ class Parser:
                     if cls.state == ParseState.SecInt or cls.state == ParseState.SecText:
                         Parser.parse_cmd(parts[1], parts[2] if len(parts) > 2 else None, i)
                     elif cls.state == ParseState.SecData:
-                        Parser.parse_data(parts[1], parts[2] if len(parts) > 2 else None, i)
+                        Parser.parse_data(parts[1], parts[2:] if len(parts) > 2 else None, i)
 
             elif cls.state == ParseState.SecInt or cls.state == ParseState.SecText:
                 Parser.parse_cmd(parts[0], parts[1] if len(parts) > 1 else None, i)
             elif cls.state == ParseState.SecData:
-                Parser.parse_data(parts[0], parts[1] if len(parts) > 1 else None, i)
+                Parser.parse_data(parts[0], parts[1:] if len(parts) > 1 else None, i)
 
         if start is None:
             raise WrongSyntaxError(f"No 'start' label found.")
@@ -253,7 +271,8 @@ class Parser:
         cls.place_series(res_cmem, 1, start, 4)
         res_cmem[5] = 0x4B
         cls.place_series(res_cmem, 6, int_sec, 4)
-        print("MEMORY:")
-        print("\n".join([f"{k}: {v}" for k,v in res_mem.items()]))
-        print("PROGRAM:")
-        print("\n".join([f"{k}: {v}" for k,v in res_cmem.items()]))
+        # print("MEMORY:")
+        # print("\n".join([f"{k}: {v}" for k,v in res_mem.items()]))
+        # print("PROGRAM:")
+        # print("\n".join([f"{k}: {v}" for k,v in res_cmem.items()]))
+        return res_cmem, res_mem
