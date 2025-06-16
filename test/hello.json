@@ -1,0 +1,7 @@
+{
+  "mem_size": 2048,
+  "tick_cnt": 500,
+  "report": "ac: {ac} ar: {ar} pc: {pc} cr: {cr}",
+  "res": "str",
+  "assert": "hello world!!!"
+}

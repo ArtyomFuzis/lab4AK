@@ -764,13 +764,27 @@ class InstructionDecoder:
 
         return [self.tick_read(), tick2,tick3]
 
+    def int_ret(self)-> list[Callable[[], None]]:
+        def tick() -> None:
+            self.pc_choice = (3).to_bytes(1, signed=False)
+            self.__l_pc.perform()
+            self.interception = 0
+        return [tick]
+
     def tick(self) -> None:
         if self.stop:
             return
         if self.state == CUState.PreStart:
             #TODO Interception & Vector
-            #
+            #~(int_got | b_cv[0] | interception)
             #lambda: (1 & (1 ^ (int.from_bytes(self.__b_int_got.get_data()) | int.from_bytes(self.__b_cv_state.get_data()) | self.interception))).to_bytes(1))
+            if int.from_bytes(self.__b_int_got.get_data()) != 0 and self.interception == 0:
+                self.interception = 1
+                self.__l_ra.perform()
+                self.pc_choice = (5).to_bytes(1, signed=False)
+                self.__l_pc.perform()
+                return
+
             self.__l_cdata.perform()
             self.state = CUState.Start
         elif self.state == CUState.Start:
@@ -797,6 +811,8 @@ class InstructionDecoder:
                     self.put_to_ticks(self.neg())
                 elif cmd_last == 7:
                     self.put_to_ticks(self.halt())
+                elif cmd_last == 8:
+                    self.put_to_ticks(self.int_ret())
             elif cmd_pref == 1:
                 self.pc_choice = (0).to_bytes(1, signed=False)
                 self.__l_pc.perform()

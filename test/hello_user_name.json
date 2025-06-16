@@ -1,0 +1,15 @@
+{
+  "mem_size": 2048,
+  "tick_cnt": 3000,
+  "report": "ac: {ac} ar: {ar} pc: {pc} cr: {cr}",
+  "res": "str",
+  "assert": "What is your name?\n\\0Hello, Alice!\\0",
+  "input": {
+    "1000": "A",
+    "1001": "l",
+    "1002": "i",
+    "1003": "c",
+    "1004": "e",
+    "1005": "0"
+  }
+}

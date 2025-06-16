@@ -28,6 +28,11 @@ class Parser:
                     true_arg = int.from_bytes(bytes.fromhex(arg[2:]))
                 elif arg.isdigit():
                     true_arg = int(arg)
+                elif len(arg) == 3 and arg[0] == "'" and arg[-1] == "'":
+                    true_arg = ord(arg[1])
+                elif arg[0] == "'":
+                    raise WrongSyntaxError(
+                        f"In line {line}: argument cannot be contain a whitespace or unclosed quotes.")
                 else:
                     true_arg = arg
                 cls.prog[cls.cur_addr_cmem] = (opcode, true_arg, ar_size)
@@ -163,7 +168,8 @@ class Parser:
 
     @classmethod
     def parse_asm(cls, text: str) -> (dict[int, int], dict[int,int]):
-        split = text.lower().splitlines()
+        #split = text.lower().splitlines()
+        split = text.splitlines()
         int_sec = None
         start = None
         cls.state = ParseState.No
@@ -218,13 +224,11 @@ class Parser:
                     cls.cur_addr_mem = val
 
             elif parts[0][-1] == ':':
-                if cls.state == ParseState.SecInt:
-                    raise WrongSyntaxError(f"Unexpected label in int section in line {i}.")
                 if parts[0][:-1] == 'start':
                     if cls.state == ParseState.SecData:
                         raise WrongSyntaxError(f"Unexpected label 'start' in data section in line {i}.")
                     start = cls.cur_addr_cmem
-                if cls.state == ParseState.SecText:
+                if cls.state == ParseState.SecText or cls.state == ParseState.SecInt:
                     cls.labels[parts[0][:-1]] = cls.cur_addr_cmem
                 elif cls.state == ParseState.SecData:
                     cls.labels[parts[0][:-1]] = cls.cur_addr_mem
