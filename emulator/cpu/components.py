@@ -731,6 +731,42 @@ class InstructionDecoder:
 
         return [tick1]
 
+    def jc(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            if int.from_bytes(self.__b_flg.get_data()) & 8 == 0:
+                return
+            self.pc_choice = (4).to_bytes(1, signed=False)
+            self.__l_pc.perform()
+
+        return [tick1]
+
+    def jnc(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            if int.from_bytes(self.__b_flg.get_data()) & 8 != 0:
+                return
+            self.pc_choice = (4).to_bytes(1, signed=False)
+            self.__l_pc.perform()
+
+        return [tick1]
+
+    def jv(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            if int.from_bytes(self.__b_flg.get_data()) & 4 == 0:
+                return
+            self.pc_choice = (4).to_bytes(1, signed=False)
+            self.__l_pc.perform()
+
+        return [tick1]
+
+    def jnv(self) -> list[Callable[[], None]]:
+        def tick1() -> None:
+            if int.from_bytes(self.__b_flg.get_data()) & 4 != 0:
+                return
+            self.pc_choice = (4).to_bytes(1, signed=False)
+            self.__l_pc.perform()
+
+        return [tick1]
+
     def halt(self) -> list[Callable[[], None]]:
         def tick1() -> None:
             self.stop = True
@@ -775,7 +811,6 @@ class InstructionDecoder:
         if self.stop:
             return
         if self.state == CUState.PreStart:
-            #TODO Interception & Vector
             #~(int_got | b_cv[0] | interception)
             #lambda: (1 & (1 ^ (int.from_bytes(self.__b_int_got.get_data()) | int.from_bytes(self.__b_cv_state.get_data()) | self.interception))).to_bytes(1))
             if int.from_bytes(self.__b_int_got.get_data()) != 0 and self.interception == 0:
@@ -852,7 +887,14 @@ class InstructionDecoder:
                         self.put_to_ticks(self.jgt())
                     elif cmd_last == 0xf:
                         self.put_to_ticks(self.jlt())
-
+                    elif cmd_last == 0x10:
+                        self.put_to_ticks(self.jc())
+                    elif cmd_last == 0x11:
+                        self.put_to_ticks(self.jnc())
+                    elif cmd_last == 0x12:
+                        self.put_to_ticks(self.jv())
+                    elif cmd_last == 0x13:
+                        self.put_to_ticks(self.jnv())
                 elif cmd_mode == 1:
                     self.cr_choice = (1).to_bytes(1, signed=False)
                     self.alu_choice = (0).to_bytes(1, signed=False)
@@ -898,6 +940,15 @@ class InstructionDecoder:
                     self.put_to_ticks(self.jgt())
                 elif cmd_last == 0x03:
                     self.put_to_ticks(self.jlt())
+                elif cmd_last == 0x04:
+                    self.put_to_ticks(self.jc())
+                elif cmd_last == 0x05:
+                    self.put_to_ticks(self.jnc())
+                elif cmd_last == 0x06:
+                    self.put_to_ticks(self.jv())
+                elif cmd_last == 0x07:
+                    self.put_to_ticks(self.jnv())
+
             self.state = CUState.Run
 
         elif self.state == CUState.Run:

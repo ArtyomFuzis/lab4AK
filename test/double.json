@@ -1,0 +1,7 @@
+{
+  "mem_size": 2048,
+  "tick_cnt": 400,
+  "report": "ac: {ac} ar: {ar} pc: {pc} cr: {cr}",
+  "res": "hex",
+  "assert": "19f28daa 25598b34 "
+}

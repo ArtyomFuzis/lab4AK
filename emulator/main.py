@@ -42,11 +42,11 @@ if __name__ == '__main__':
         res_type = params['res']
 
     if res_type == 'hex':
-        res_to_str = lambda x, y: str(x.to_hex())+" "
+        res_to_str = lambda x, y: str(x.hex())+" "
     elif res_type == 'str':
         res_to_str = lambda x, y: str(chr(x[-1])) if x [-1] != 0 else "\\0"
     elif res_type == 'full':
-        res_to_str = lambda x, y: str(y)+": "+str(x.to_hex()) + "  "
+        res_to_str = lambda x, y: str(y)+": "+str(x.hex()) + "  "
     elif res_type == 'dec':
         res_to_str = lambda x, y: str(int.from_bytes(x, signed=True))+" "
     else:
