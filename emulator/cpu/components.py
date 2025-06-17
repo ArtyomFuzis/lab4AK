@@ -948,6 +948,8 @@ class InstructionDecoder:
                     self.put_to_ticks(self.jv())
                 elif cmd_last == 0x07:
                     self.put_to_ticks(self.jnv())
+                elif cmd_last == 0x08:
+                    self.put_to_ticks(self.jump())
 
             self.state = CUState.Run
 

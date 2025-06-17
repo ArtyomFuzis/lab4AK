@@ -101,6 +101,10 @@ class Parser:
             reg_4_arg(0x51, cmd_arg, line)
         elif cmd == 'jnc':
             reg_4_arg(0x52, cmd_arg, line)
+        elif cmd == 'jv':
+            reg_4_arg(0x53, cmd_arg, line)
+        elif cmd == 'jnv':
+            reg_4_arg(0x54, cmd_arg, line)
         elif cmd == 'ld_a':
             reg_4_arg(0x60, cmd_arg, line)
         elif cmd == 'add_a':
@@ -141,6 +145,12 @@ class Parser:
             reg_2_arg(0x84, cmd_arg, line)
         elif cmd == 'jncr':
             reg_2_arg(0x85, cmd_arg, line)
+        elif cmd == 'jvr':
+            reg_2_arg(0x86, cmd_arg, line)
+        elif cmd == 'jnvr':
+            reg_2_arg(0x87, cmd_arg, line)
+        elif cmd == 'jr':
+            reg_2_arg(0x88, cmd_arg, line)
         else:
             raise WrongSyntaxError(f"Unknown command found in line: {line}.")
 
