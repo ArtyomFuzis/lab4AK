@@ -3,7 +3,7 @@ name: Pylint
 on: [push]
 
 jobs:
-  test_unit:
+  unit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,6 +14,42 @@ jobs:
       - name: Testing Unit cases
         run: |
           python -m unittest discover -s emulator/ -p 'unit_*.py'
+  golden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python "3.12"
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.12"
+      - name: cd test
+        run: |
+          cd test
+      - name: Golden hello
+        run: |
+           python compiler/main.py test/hello.asm
+           python emulator/main.py test/hello test/hello.json
+      - name: Golden cat
+        run: |
+           python compiler/main.py test/cat.asm
+           python emulator/main.py test/cat test/cat.json
+      - name: Golden hello_user_name
+        run: |
+           python compiler/main.py test/hello_user_name.asm
+           python emulator/main.py test/hello_user_name test/hello_user_name.json
+      - name: Golden sort
+        run: |
+           python compiler/main.py test/sort.asm
+           python emulator/main.py test/sort test/sort.json
+      - name: Golden double
+        run: |
+           python compiler/main.py test/double.asm
+           python emulator/main.py test/double test/double.json
+      - name: Golden euler
+        run: |
+           python compiler/main.py test/euler.asm
+           python emulator/main.py test/euler test/euler.json
+
   lint:
     runs-on: ubuntu-latest
     steps:
