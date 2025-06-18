@@ -1,7 +1,9 @@
 import unittest
 
-from cpu.modules import ExternalDevice1, ExternalDevice2, MainDataPath, MainControlUnit
+from cpu.modules import ExternalDevice1, ExternalDevice2, MainDataPath, MainControlUnit, VectorExecModule
 from cpu.utils import SharedMemory
+from emulator.cpu.components import DataBus, Register
+from emulator.cpu.modules import ExtensionModule
 
 
 class IODevicesTestCase(unittest.TestCase):
@@ -140,8 +142,9 @@ class MainControlUnitTestCase(unittest.TestCase):
     def setUp(self):
         self.mem = SharedMemory()
         self.dp = MainDataPath(self.mem)
+        self.vex = ExtensionModule(self.mem,self.dp.b_cr_arg)
         self.cmem = SharedMemory()
-        self.cu = MainControlUnit(self.dp, self.cmem)
+        self.cu = MainControlUnit(self.dp, self.vex, self.cmem)
 
     def doTick(self):
         if self.cu.id.stop:
@@ -217,6 +220,151 @@ class MainControlUnitTestCase(unittest.TestCase):
             self.doTick()
         self.assertEqual("fffffffa", self.dp.b_alu_ac.get_data().hex())
 
+
+class VectorExecModuleTestCase(unittest.TestCase):
+    def setUp(self):
+        self.mem= SharedMemory()
+        self.cv = (0).to_bytes(1)
+        self.var = (0).to_bytes(4)
+        b_cv_part = DataBus(1)
+        self.b_vec1 = DataBus(4)
+        self.b_vec2 = DataBus(4)
+        self.b_vec3 = DataBus(4)
+        b_var= DataBus(4)
+        b_out = DataBus(4)
+        vec1 = Register(b_out, self.b_vec1, 4)
+        vec2 = Register(b_out, self.b_vec2, 4)
+        vec3 = Register(b_out, self.b_vec3, 4)
+        b_cv_part.bind_provider(lambda: self.cv)
+        b_var.bind_provider(lambda: self.var)
+        self.vem = VectorExecModule(self.mem, b_cv_part,
+                                    vec1.get_control_latch(),
+                                    vec2.get_control_latch(),
+                                    vec3.get_control_latch(),
+                                    self.b_vec1, self.b_vec2, self.b_vec3, b_var)
+        b_out.bind_provider(self.vem.vdp.b_vec_alu_out.get_data)
+
+    def test_ld_add_st(self):
+        self.mem.arr[0x50:0x54] = (0x1245485).to_bytes(4)
+        self.var = (0x50).to_bytes(4)
+        self.cv = (0x80).to_bytes(1)
+        self.vem.l_cu_latch.perform()
+        self.vem.l_cu_latch.perform()
+        self.assertEqual('01245485', self.b_vec1.get_data().hex())
+        self.var = (0x51).to_bytes(4)
+        self.cv = (0x81).to_bytes(1)
+        self.vem.l_cu_latch.perform()
+        self.vem.l_cu_latch.perform()
+        self.assertEqual('01245485', self.b_vec1.get_data().hex())
+        self.assertEqual('24548500', self.b_vec2.get_data().hex())
+        self.cv = (0x10).to_bytes(1)
+        self.vem.l_cu_latch.perform()
+        self.assertEqual('2578d985', self.b_vec3.get_data().hex())
+        self.cv = (0x85).to_bytes(1)
+        self.var = (0x60).to_bytes(4)
+        self.vem.l_cu_latch.perform()
+        self.assertEqual('2578d985', self.mem.arr[0x60:0x64].hex())
+
+    def test_cmp(self):
+        self.mem.arr[0x50:0x54] = (0xf1245485).to_bytes(4)
+        self.var = (0x50).to_bytes(4)
+        self.cv = (0x82).to_bytes(1)
+        self.vem.l_cu_latch.perform()
+        self.vem.l_cu_latch.perform()
+        self.assertEqual('f1245485', self.b_vec3.get_data().hex())
+        self.cv = (0x0a).to_bytes(1)
+        self.vem.l_cu_latch.perform()
+        self.assertEqual('00000002', self.b_vec3.get_data().hex())
+
+class ExtensionModuleTestCase(unittest.TestCase):
+    def setUp(self):
+        self.mem = SharedMemory()
+        self.b_cr_arg = DataBus(4)
+
+        self.vex = ExtensionModule(self.mem, self.b_cr_arg)
+
+        self.cv_nxt = (0).to_bytes(1)
+        self.vex.b_cv_nxt.bind_provider(lambda: self.cv_nxt)
+
+        self.cr_arg = (0).to_bytes(4)
+        self.b_cr_arg.bind_provider(lambda: self.cr_arg)
+
+        self.l_cu1 = self.vex.l_cu_1
+        self.l_cu2 = self.vex.l_cu_2
+        self.l_cu3 = self.vex.l_cu_3
+        self.l_cu4 = self.vex.l_cu_4
+        self.l_var = self.vex.l_var
+        self.l_cv = self.vex.l_cv
+
+    def testLoad(self):
+        self.mem.arr[50:54] = (0x01245485).to_bytes(4)
+        self.mem.arr[54:58] = (0x6546468a).to_bytes(4)
+        self.mem.arr[58:62] = (0x0affcd56).to_bytes(4)
+        self.mem.arr[62:66] = (0x0123456c).to_bytes(4)
+        self.cr_arg = (50).to_bytes(4)
+        self.l_var.perform()
+        self.cv_nxt = (0x80).to_bytes(1)
+        self.l_cv.perform()
+        self.assertEqual('00000080', self.vex.b_cv.get_data().hex())
+        self.cv_nxt = (0x00).to_bytes(1)
+
+        self.l_cu1.perform()
+        self.l_cu1.perform()
+        self.assertEqual('01245485', self.vex.b_vec1_1.get_data().hex())
+
+        self.l_cv.perform()
+        self.assertEqual('00008000', self.vex.b_cv.get_data().hex())
+
+        self.l_cu2.perform()
+        self.l_cu2.perform()
+        self.assertEqual('6546468a', self.vex.b_vec1_2.get_data().hex())
+
+        self.l_cv.perform()
+        self.assertEqual('00800000', self.vex.b_cv.get_data().hex())
+
+        self.l_cu3.perform()
+        self.l_cu3.perform()
+        self.assertEqual('0affcd56', self.vex.b_vec1_3.get_data().hex())
+
+        self.l_cv.perform()
+        self.assertEqual('80000000', self.vex.b_cv.get_data().hex())
+
+        self.l_cu4.perform()
+        self.l_cu4.perform()
+        self.assertEqual('0123456c', self.vex.b_vec1_4.get_data().hex())
+
+    def test_line(self):
+        self.mem.arr[50:54] = (500).to_bytes(4)
+        self.mem.arr[54:58] = (360).to_bytes(4)
+        self.mem.arr[58:62] = (-1).to_bytes(4, signed=True)
+        self.mem.arr[62:66] = (69).to_bytes(4)
+
+        self.cr_arg = (50).to_bytes(4)
+        self.l_var.perform()
+
+        cv = [0x82, 0x01, 0x02, 0x10, 0, 0, 0]
+
+        for i in range(len(cv)):
+            self.cv_nxt = (cv[i]).to_bytes(1)
+            self.l_cv.perform()
+            self.l_cu1.perform()
+            self.l_cu2.perform()
+            self.l_cu3.perform()
+            self.l_cu4.perform()
+            state = int.from_bytes(self.vex.b_cv_state.get_data()) >> 1
+            if state == 1:
+                self.l_cu1.perform()
+            elif state == 2:
+                self.l_cu2.perform()
+            elif state == 3:
+                self.l_cu3.perform()
+            elif state == 4:
+                self.l_cu4.perform()
+
+        self.assertEqual('000003e8', self.vex.b_vec3_1.get_data().hex())
+        self.assertEqual('000002d0', self.vex.b_vec3_2.get_data().hex())
+        self.assertEqual('fffffffe', self.vex.b_vec3_3.get_data().hex())
+        self.assertEqual('0000008a', self.vex.b_vec3_4.get_data().hex())
 
 
 

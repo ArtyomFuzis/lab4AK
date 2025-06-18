@@ -1,6 +1,6 @@
 import unittest
 
-from cpu.components import DataBus, MemoryUnit, Register, MultiPlex, ALU, SimpleAction, BiAction
+from cpu.components import DataBus, MemoryUnit, Register, MultiPlex, ALU, SimpleAction, BiAction, VectorStateLogic
 from cpu.modules import ExternalDevice1, ExternalDevice2
 from cpu.utils import SharedMemory
 
@@ -421,6 +421,20 @@ class BiActionTestCase(unittest.TestCase):
         self.inp2 = (362).to_bytes(4, signed=True)
         self.assertEqual(329, int.from_bytes(self.bus_out.get_data(), signed=True))
 
+class VectorStateLogicTestCase(unittest.TestCase):
+    def setUp(self):
+        self.inp = (0).to_bytes(4)
+        self.b_in = DataBus(4)
+        self.b_in.bind_provider(lambda: self.inp)
+        self.b_out = DataBus(1)
+        self.state_logic = VectorStateLogic(self.b_in, self.b_out)
 
-
-
+    def test_simple(self):
+        self.inp = (0x00000000).to_bytes(4)
+        self.assertEqual("00", self.b_out.get_data().hex())
+        self.inp = (0x00000001).to_bytes(4)
+        self.assertEqual("01", self.b_out.get_data().hex())
+        self.inp = (0x00000080).to_bytes(4)
+        self.assertEqual("03", self.b_out.get_data().hex())
+        self.inp = (0x80000000).to_bytes(4)
+        self.assertEqual("09", self.b_out.get_data().hex())

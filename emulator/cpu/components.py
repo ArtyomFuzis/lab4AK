@@ -360,8 +360,13 @@ class InstructionDecoder:
                  l_data: Latch,
                  l_ac: Latch,
                  l_ar: Latch,
-                 l_cv: Latch,
                  l_flg: Latch,
+                 l_var: Latch,
+                 l_cv: Latch,
+                 l_vcu1: Latch,
+                 l_vcu2: Latch,
+                 l_vcu3: Latch,
+                 l_vcu4: Latch,
                  b_cmd: DataBus,
                  b_pc_choice: DataBus,
                  b_cr_choice: DataBus,
@@ -384,6 +389,11 @@ class InstructionDecoder:
         self.__l_ar = l_ar
         self.__l_cv = l_cv
         self.__l_flg = l_flg
+        self.__l_var = l_var
+        self.__l_vcu1 = l_vcu1
+        self.__l_vcu2 = l_vcu2
+        self.__l_vcu3 = l_vcu3
+        self.__l_vcu4 = l_vcu4
 
         #in buses
         self.__b_cmd = b_cmd
@@ -424,6 +434,9 @@ class InstructionDecoder:
         self.ticks = queue.Queue()
 
         self.__b_int_allow.bind_provider(lambda: (1 & (1 ^ (int.from_bytes(self.__b_int_got.get_data()) | int.from_bytes(self.__b_cv_state.get_data()) | self.interception))).to_bytes(1))
+
+        self.cmd_read = False
+        self.additional_tick = False
 
     def put_to_ticks(self, ticks: list[Callable[[],None]]) -> None:
         for el in ticks:
@@ -820,15 +833,54 @@ class InstructionDecoder:
                 self.__l_pc.perform()
                 return
 
-            self.__l_cdata.perform()
-            self.state = CUState.Start
+            if not self.cmd_read:
+                self.__l_cdata.perform()
+                self.cmd_read = True
+
+            cv_state = int.from_bytes(self.__b_cv_state.get_data())
+            if cv_state != 0:
+                if self.additional_tick:
+                    state = cv_state >> 1
+                    if state == 1:
+                        self.__l_vcu1.perform()
+                    elif state == 2:
+                        self.__l_vcu2.perform()
+                    elif state == 3:
+                        self.__l_vcu3.perform()
+                    elif state == 4:
+                        self.__l_vcu4.perform()
+                    self.additional_tick = False
+                    self.state = CUState.Start
+                else:
+                    self.__l_vcu1.perform()
+                    self.__l_vcu2.perform()
+                    self.__l_vcu3.perform()
+                    self.__l_vcu4.perform()
+                    if cv_state >> 1 != 0:
+                        self.additional_tick = True
+                        self.state = CUState.PreStart
+            else:
+                self.state = CUState.Start
+
         elif self.state == CUState.Start:
             self.__l_cr.perform()
             command = int.from_bytes(self.__b_cmd.get_data()[0:1])
+            cv_state = int.from_bytes(self.__b_cv_state.get_data())
             cmd_pref = (command & 0xC0) >> 6
             cmd_last = command & 0x3F
+
             if command == 0:
+                self.pc_choice = (2).to_bytes(1, signed=False)
+                self.__l_pc.perform()
+                self.cmd_read = False
                 return
+
+            if (cmd_pref != 3 and cv_state != 0) or (command & 0xF0 == 0xF0 and cv_state >> 1 in (1, 2, 3)):
+                self.cv_nxt = (0).to_bytes(1)
+                self.__l_cv.perform()
+                self.state = CUState.PreStart
+                return
+
             if cmd_pref == 0:
                 self.pc_choice = (2).to_bytes(1, signed=False)
                 self.__l_pc.perform()
@@ -950,7 +1002,60 @@ class InstructionDecoder:
                     self.put_to_ticks(self.jnv())
                 elif cmd_last == 0x08:
                     self.put_to_ticks(self.jump())
+            elif cmd_pref == 3:
+                if command & 0xF0 == 0xF0:
+                    self.pc_choice = (0).to_bytes(1, signed=False)
+                    self.__l_pc.perform()
+                    if command == 0xF0:
+                        self.cv_nxt = (0x80).to_bytes(1)
 
+                    elif command == 0xF1:
+                        self.cv_nxt = (0x81).to_bytes(1)
+
+                    elif command == 0xF2:
+                        self.cv_nxt = (0x82).to_bytes(1)
+
+                    elif command == 0xF3:
+                        self.cv_nxt = (0x83).to_bytes(1)
+
+                    elif command == 0xF4:
+                        self.cv_nxt = (0x84).to_bytes(1)
+
+                    elif command == 0xF5:
+                        self.cv_nxt = (0x85).to_bytes(1)
+
+                else:
+                    self.pc_choice = (2).to_bytes(1, signed=False)
+                    self.__l_pc.perform()
+                    self.cr_choice = (1).to_bytes(1, signed=False)
+
+                    if command == 0xD0:
+                        self.cv_nxt = (0x10).to_bytes(1)
+
+                    elif command == 0xD1:
+                        self.cv_nxt = (0x11).to_bytes(1)
+
+                    elif command == 0xD2:
+                        self.cv_nxt = (0x22).to_bytes(1)
+
+                    elif command == 0xD3:
+                        self.cv_nxt = (0x23).to_bytes(1)
+
+                    elif command == 0xC1:
+                        self.cv_nxt = (0x01).to_bytes(1)
+
+                    elif command == 0xC2:
+                        self.cv_nxt = (0x02).to_bytes(1)
+
+                    elif command == 0xCA:
+                        self.cv_nxt = (0x0A).to_bytes(1)
+
+                self.__l_cv.perform()
+                self.cmd_read = False
+                self.state = CUState.PreStart
+                return
+
+            self.cmd_read = False
             self.state = CUState.Run
 
         elif self.state == CUState.Run:
@@ -963,8 +1068,167 @@ class ImmediateValue:
         val = bytes(value)
         bus_out.bind_provider(lambda: val)
 
+class FourPartRegister:
+    def __init__(self, b_in_1: DataBus,
+                 b_in_2: DataBus,
+                 b_in_3: DataBus,
+                 b_in_4: DataBus,
+                 b_out_1: DataBus,
+                 b_out_2: DataBus,
+                 b_out_3: DataBus,
+                 b_out_4: DataBus,
+                 size: int):
+        self.reg1 = Register(b_in_1, b_out_1, size)
+        self.reg2 = Register(b_in_2, b_out_2, size)
+        self.reg3 = Register(b_in_3, b_out_3, size)
+        self.reg4 = Register(b_in_4, b_out_4, size)
+
+    def get_control_latch_1(self) -> Latch:
+        return self.reg1.get_control_latch()
+
+    def get_control_latch_2(self) -> Latch:
+        return self.reg2.get_control_latch()
+
+    def get_control_latch_3(self) -> Latch:
+        return self.reg3.get_control_latch()
+
+    def get_control_latch_4(self) -> Latch:
+        return self.reg4.get_control_latch()
+
+class VectorStateLogic:
+    def __init__(self, b_in: DataBus, b_out: DataBus):
+        self.__b_in = b_in
+        b_out.bind_provider(self.perform)
+
+    def perform(self) -> bytes:
+        data = int.from_bytes(self.__b_in.get_data())
+        first = 0
+        second = 0
+        if data != 0:
+            first = 1
+
+        if data & 0x80 != 0:
+            second = 1
+        elif data & 0x8000 != 0:
+            second = 2
+        elif data & 0x800000 != 0:
+            second = 3
+        elif data & 0x80000000 != 0:
+            second = 4
 
 
+        return (first + (second << 1)).to_bytes(1)
+
+class SimpleExtender:
+    def __init__(self, b_in: DataBus, b_out: DataBus, size_to: int):
+        b_out.bind_provider(lambda: int.from_bytes(b_in.get_data()).to_bytes(size_to))
+
+
+class VectorControlUnit:
+    def __init__(self,
+                 b_cv_part: DataBus,
+                 b_alu_inp1_choice: DataBus,
+                 b_alu_inp2_choice: DataBus,
+                 b_alu_op_vec: DataBus,
+                 b_alu_out_choice: DataBus,
+                 b_data_op: DataBus,
+                 l_data: Latch,
+                 l_vec1: Latch,
+                 l_vec2: Latch,
+                 l_vec3: Latch):
+
+        self.__b_cv_part = b_cv_part
+        self.__b_alu_inp1_choice = b_alu_inp1_choice
+        self.__b_alu_inp2_choice = b_alu_inp2_choice
+        self.__b_alu_op_vec = b_alu_op_vec
+        self.__b_alu_out_choice = b_alu_out_choice
+        self.__b_data_op = b_data_op
+
+        self.inp1_choice = (0).to_bytes(1)
+        self.inp2_choice = (0).to_bytes(1)
+        self.out_choice = (0).to_bytes(1)
+        self.alu_op_vec = (0).to_bytes(1)
+        self.data_op = (0).to_bytes(1)
+
+        self.__b_alu_inp1_choice.bind_provider(lambda: self.inp1_choice)
+        self.__b_alu_inp2_choice.bind_provider(lambda: self.inp2_choice)
+        self.__b_alu_out_choice.bind_provider(lambda: self.out_choice)
+        self.__b_alu_op_vec.bind_provider(lambda: self.alu_op_vec)
+        self.__b_data_op.bind_provider(lambda: self.data_op)
+
+
+        self.__l_data = l_data
+        self.__l_vec1 = l_vec1
+        self.__l_vec2 = l_vec2
+        self.__l_vec3 = l_vec3
+
+        self.tick2 = False
+
+    def tick(self):
+        cmd = int.from_bytes(self.__b_cv_part.get_data())
+        if cmd & 0x80:
+            if cmd in (0x80, 0x81, 0x82):
+                if not self.tick2:
+                    self.data_op = (0).to_bytes(1)
+                    self.__l_data.perform()
+                    self.tick2 = True
+                else:
+                    self.alu_op_vec = (8).to_bytes(1)
+                    self.inp2_choice = (3).to_bytes(1)
+                    self.out_choice = (1).to_bytes(1)
+                    if cmd == 0x80:
+                        self.__l_vec1.perform()
+                    elif cmd == 0x81:
+                        self.__l_vec2.perform()
+                    elif cmd == 0x82:
+                        self.__l_vec3.perform()
+                    self.tick2 = False
+
+            elif cmd in (0x83, 0x84, 0x85):
+                self.data_op = (1).to_bytes(1)
+                self.alu_op_vec = (8).to_bytes(1)
+                if cmd == 0x83:
+                    self.inp2_choice = (2).to_bytes(1)
+                elif cmd == 0x84:
+                    self.inp2_choice = (1).to_bytes(1)
+                elif cmd == 0x85:
+                    self.inp2_choice = (0).to_bytes(1)
+                self.out_choice = (1).to_bytes(1)
+                self.__l_data.perform()
+
+        else:
+            if cmd in (0x10, 0x11, 0x12, 0x13):
+                self.inp1_choice = (2).to_bytes(1)
+                self.inp2_choice = (1).to_bytes(1)
+                if cmd == 0x10:
+                    self.alu_op_vec = (0).to_bytes(1)
+                elif cmd == 0x11:
+                    self.alu_op_vec = (1).to_bytes(1)
+                elif cmd == 0x12:
+                    self.alu_op_vec = (5).to_bytes(1)
+                elif cmd == 0x13:
+                    self.alu_op_vec = (4).to_bytes(1)
+
+                self.out_choice = (1).to_bytes(1)
+                self.__l_vec3.perform()
+
+            elif cmd in (0x01, 0x02):
+                self.inp2_choice = (0).to_bytes(1)
+                self.alu_op_vec = (8).to_bytes(1)
+                self.out_choice = (1).to_bytes(1)
+                if cmd == 0x01:
+                    self.__l_vec1.perform()
+                elif cmd == 0x02:
+                    self.__l_vec2.perform()
+
+            elif cmd in (0x0a,):
+                self.inp2_choice = (0).to_bytes(1)
+                self.alu_op_vec = (8).to_bytes(1)
+                self.out_choice = (0).to_bytes(1)
+                self.__l_vec3.perform()
+
+    def get_control_latch(self) -> Latch:
+        return Latch(self.tick)
 
 
 

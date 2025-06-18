@@ -1,0 +1,6 @@
+{
+  "mem_size": 2048,
+  "tick_cnt": 2000,
+  "report": "({tick}): ac: {ac} ar: {ar} pc: {pc} cr: {cr} cv: {cv}",
+  "res": "dec"
+}

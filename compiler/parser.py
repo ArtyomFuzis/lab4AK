@@ -151,6 +151,32 @@ class Parser:
             reg_2_arg(0x87, cmd_arg, line)
         elif cmd == 'jr':
             reg_2_arg(0x88, cmd_arg, line)
+        elif cmd == 'vld1':
+            reg_4_arg(0xf0, cmd_arg, line)
+        elif cmd == 'vld2':
+            reg_4_arg(0xf1, cmd_arg, line)
+        elif cmd == 'vld3':
+            reg_4_arg(0xf2, cmd_arg, line)
+        elif cmd == 'vst1':
+            reg_4_arg(0xf3, cmd_arg, line)
+        elif cmd == 'vst2':
+            reg_4_arg(0xf4, cmd_arg, line)
+        elif cmd == 'vst3':
+            reg_4_arg(0xf5, cmd_arg, line)
+        elif cmd == 'vadd12':
+            reg_4_arg(0xd0, cmd_arg, line)
+        elif cmd == 'vsub12':
+            reg_4_arg(0xd1, cmd_arg, line)
+        elif cmd == 'vmul12':
+            reg_4_arg(0xd2, cmd_arg, line)
+        elif cmd == 'vdiv12':
+            reg_4_arg(0xd3, cmd_arg, line)
+        elif cmd == 'vmv31':
+            reg_4_arg(0xc1, cmd_arg, line)
+        elif cmd == 'vmv32':
+            reg_4_arg(0xc2, cmd_arg, line)
+        elif cmd == 'vcmp3':
+            reg_4_arg(0xca, cmd_arg, line)
         else:
             raise WrongSyntaxError(f"Unknown command found in line: {line}.")
 

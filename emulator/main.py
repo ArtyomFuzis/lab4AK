@@ -2,6 +2,7 @@ import sys
 import json
 from cpu.modules import MainDataPath, MainControlUnit
 from cpu.utils import SharedMemory
+from cpu.modules import ExtensionModule
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
@@ -57,8 +58,8 @@ if __name__ == '__main__':
     cmem.load_to_mem([list(cmem_read)])
 
     dp = MainDataPath(mem)
-    cu = MainControlUnit(dp, cmem)
-    cu.b_cv_state.bind_provider(lambda: (0).to_bytes(1))
+    vex = ExtensionModule(mem, dp.b_cr_arg)
+    cu = MainControlUnit(dp, vex, cmem)
     full_res = ""
     for i in range(tick_cnt):
         if cu.id.stop:
@@ -88,6 +89,8 @@ if __name__ == '__main__':
               .replace('{pc}', str(cu.b_pc.get_data().hex()))
               .replace('{cr}', str(cu.b_cmd.get_data().hex()))
               .replace('{flg}', str(dp.b_flg.get_data().hex()))
+              .replace('{cv}', str(vex.b_cv.get_data().hex()))
+              .replace('{tick}', str(i))
               )
     print(full_res)
     if 'assert' in params:
