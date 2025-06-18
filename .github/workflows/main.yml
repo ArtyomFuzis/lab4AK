@@ -49,6 +49,10 @@ jobs:
         run: |
            python compiler/main.py test/euler.asm
            python emulator/main.py test/euler test/euler.json
+      - name: Golden simple vec
+        run: |
+           python compiler/main.py test/vec.asm
+           python emulator/main.py test/vec test/vec.json
 
   lint:
     runs-on: ubuntu-latest

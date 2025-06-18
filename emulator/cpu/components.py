@@ -1006,6 +1006,8 @@ class InstructionDecoder:
                 if command & 0xF0 == 0xF0:
                     self.pc_choice = (0).to_bytes(1, signed=False)
                     self.__l_pc.perform()
+                    self.cr_choice = (1).to_bytes(1, signed=False)
+                    self.__l_var.perform()
                     if command == 0xF0:
                         self.cv_nxt = (0x80).to_bytes(1)
 
@@ -1027,7 +1029,6 @@ class InstructionDecoder:
                 else:
                     self.pc_choice = (2).to_bytes(1, signed=False)
                     self.__l_pc.perform()
-                    self.cr_choice = (1).to_bytes(1, signed=False)
 
                     if command == 0xD0:
                         self.cv_nxt = (0x10).to_bytes(1)

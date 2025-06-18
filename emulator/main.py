@@ -90,7 +90,7 @@ if __name__ == '__main__':
               .replace('{cr}', str(cu.b_cmd.get_data().hex()))
               .replace('{flg}', str(dp.b_flg.get_data().hex()))
               .replace('{cv}', str(vex.b_cv.get_data().hex()))
-              .replace('{tick}', str(i))
+              .replace('{tick}', str(i+1))
               )
     print(full_res)
     if 'assert' in params:

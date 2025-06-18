@@ -14,7 +14,7 @@ class ParseState(Enum):
 class Parser:
     @classmethod
     def place_series(cls, mem, addr, val, size):
-        res = val.to_bytes(size)
+        res = val.to_bytes(size, signed=True)
         for i in range(size):
             mem[addr + i] = res[i]
 
@@ -26,7 +26,7 @@ class Parser:
                     raise WrongSyntaxError(f"Argument not found in line: {line}")
                 if arg[0:2] == '0x':
                     true_arg = int.from_bytes(bytes.fromhex(arg[2:]))
-                elif arg.isdigit():
+                elif arg.isdigit() or (arg[0] == '-' and arg[1:].isdigit()):
                     true_arg = int(arg)
                 elif len(arg) == 3 and arg[0] == "'" and arg[-1] == "'":
                     true_arg = ord(arg[1])
@@ -164,19 +164,19 @@ class Parser:
         elif cmd == 'vst3':
             reg_4_arg(0xf5, cmd_arg, line)
         elif cmd == 'vadd12':
-            reg_4_arg(0xd0, cmd_arg, line)
+            reg_no_arg(0xd0, cmd_arg, line)
         elif cmd == 'vsub12':
-            reg_4_arg(0xd1, cmd_arg, line)
+            reg_no_arg(0xd1, cmd_arg, line)
         elif cmd == 'vmul12':
-            reg_4_arg(0xd2, cmd_arg, line)
+            reg_no_arg(0xd2, cmd_arg, line)
         elif cmd == 'vdiv12':
-            reg_4_arg(0xd3, cmd_arg, line)
+            reg_no_arg(0xd3, cmd_arg, line)
         elif cmd == 'vmv31':
-            reg_4_arg(0xc1, cmd_arg, line)
+            reg_no_arg(0xc1, cmd_arg, line)
         elif cmd == 'vmv32':
-            reg_4_arg(0xc2, cmd_arg, line)
+            reg_no_arg(0xc2, cmd_arg, line)
         elif cmd == 'vcmp3':
-            reg_4_arg(0xca, cmd_arg, line)
+            reg_no_arg(0xca, cmd_arg, line)
         else:
             raise WrongSyntaxError(f"Unknown command found in line: {line}.")
 
@@ -189,7 +189,7 @@ class Parser:
         for el in value:
             if el[0:2] == '0x':
                 new_vals.append(int.from_bytes(bytes.fromhex(el[2:])))
-            elif el.isdigit():
+            elif el.isdigit() or (el[0] == '-' and el[1:].isdigit()):
                 new_vals.append(int(el))
             elif el[0] == "'" and el[-1] == "'":
                 for el2 in el[1:-1]:
@@ -326,3 +326,86 @@ class Parser:
         # print("PROGRAM:")
         # print("\n".join([f"{k}: {v}" for k,v in res_cmem.items()]))
         return res_cmem, res_mem
+
+    @classmethod
+    def preprocessor(cls, txt: str) -> str:
+        pre_res = ""
+        txt_split = txt.splitlines()
+        for l in txt_split:
+            try:
+                ind = l.index(';')
+                pre_res += l[:ind]+"\n"
+            except ValueError:
+                pre_res += l+"\n"
+        txt_split = pre_res.splitlines()
+
+        in_define = False
+        define_name = ""
+        define_txt = ""
+        defines = dict()
+        pre_res_2 = ""
+        for i in range(len(txt_split)):
+            l = txt_split[i]
+
+            l_split = re.split(r"\s+", l)
+            if len(l_split) == 0:
+                continue
+            if l_split[-1] == '':
+                l_split = l_split[0:-1]
+            if len(l_split) == 0:
+                continue
+            if l_split[0] == '':
+                l_split = l_split[1:]
+
+            if '#define' in l:
+                if len(l_split) != 2 or l_split[0] != '#define':
+                    WrongSyntaxError(f"Wrong define usage in line {i+1}")
+                if in_define:
+                    WrongSyntaxError(f"Define in define in line {i + 1}")
+
+                in_define = True
+                define_name = l_split[1]
+
+            elif '#enddefine' in l:
+                if not in_define:
+                    WrongSyntaxError(f"enddefine before define in line {i + 1}")
+
+                if len(l_split) != 1 or l_split[0] != '#enddefine':
+                    WrongSyntaxError(f"Wrong enddefine usage in line {i+1}")
+
+                defines[define_name] = define_txt
+                in_define = False
+                define_txt = ""
+                define_name = ""
+
+            elif in_define:
+                define_txt += l + "\n"
+
+
+
+            else:
+                pre_res_2 += l + "\n"
+        txt_split = pre_res_2.splitlines()
+
+        res = ""
+        for i in range(len(txt_split)):
+            l = txt_split[i]
+
+            l_split = re.split(r"\s+", l)
+            if len(l_split) == 0:
+                continue
+            if l_split[-1] == '':
+                l_split = l_split[0:-1]
+            if len(l_split) == 0:
+                continue
+            if l_split[0] == '':
+                l_split = l_split[1:]
+
+            if l_split[0] in defines:
+                def_txt = defines[l_split[0]]
+                for i2 in range(1,len(l_split)):
+                    def_txt = def_txt.replace(f"${str(i2)}", l_split[i2])
+                res += def_txt
+            else:
+                res += l + "\n"
+        return res

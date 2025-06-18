@@ -8,7 +8,8 @@ if __name__ == '__main__':
         sys.exit(1)
 
     with open(sys.argv[1], 'r') as f:
-        (cmem, mem) = Parser.parse_asm(f.read())
+
+        (cmem, mem) = Parser.parse_asm(Parser.preprocessor(f.read()))
 
     name = sys.argv[1].rsplit('.')[0]
     mem_size = 32768
