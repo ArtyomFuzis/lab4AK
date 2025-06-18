@@ -13,8 +13,16 @@ class ParseState(Enum):
 
 class Parser:
     @classmethod
-    def place_series(cls, mem, addr, val, size):
-        res = val.to_bytes(size, signed=True)
+    def to_bytes_somehow(cls, val:int, size:int ) -> bytes:
+        try:
+            res = val.to_bytes(size, signed=True)
+        except OverflowError:
+            res = val.to_bytes(size, signed=False)
+        return res
+
+    @classmethod
+    def place_series(cls, mem, addr, val:int, size:int) -> None:
+        res = cls.to_bytes_somehow(val, size)
         for i in range(size):
             mem[addr + i] = res[i]
 

@@ -2,8 +2,8 @@ import unittest
 
 from cpu.modules import ExternalDevice1, ExternalDevice2, MainDataPath, MainControlUnit, VectorExecModule
 from cpu.utils import SharedMemory
-from emulator.cpu.components import DataBus, Register
-from emulator.cpu.modules import ExtensionModule
+from cpu.components import DataBus, Register
+from cpu.modules import ExtensionModule
 
 
 class IODevicesTestCase(unittest.TestCase):
