@@ -92,6 +92,10 @@ if __name__ == '__main__':
               .replace('{cv}', str(vex.b_cv.get_data().hex()))
               .replace('{tick}', str(i+1))
               )
+        #print(str(vex.b_vec1_1.get_data().hex())+" "+str(vex.b_vec1_2.get_data().hex())+" "+str(vex.b_vec1_3.get_data().hex())+" "+str(vex.b_vec1_4.get_data().hex()))
+        #print(str(vex.b_vec2_1.get_data().hex())+" "+str(vex.b_vec2_2.get_data().hex())+" "+str(vex.b_vec2_3.get_data().hex())+" "+str(vex.b_vec2_4.get_data().hex()))
+        #print(str(vex.b_vec3_1.get_data().hex())+" "+str(vex.b_vec3_2.get_data().hex())+" "+str(vex.b_vec3_3.get_data().hex())+" "+str(vex.b_vec3_4.get_data().hex()))
+
     print(full_res)
     if 'assert' in params:
         if type(params['assert']) != str:

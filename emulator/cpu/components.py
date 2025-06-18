@@ -1037,10 +1037,10 @@ class InstructionDecoder:
                         self.cv_nxt = (0x11).to_bytes(1)
 
                     elif command == 0xD2:
-                        self.cv_nxt = (0x22).to_bytes(1)
+                        self.cv_nxt = (0x12).to_bytes(1)
 
                     elif command == 0xD3:
-                        self.cv_nxt = (0x23).to_bytes(1)
+                        self.cv_nxt = (0x13).to_bytes(1)
 
                     elif command == 0xC1:
                         self.cv_nxt = (0x01).to_bytes(1)

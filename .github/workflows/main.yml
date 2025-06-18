@@ -53,6 +53,15 @@ jobs:
         run: |
            python compiler/main.py test/vec.asm
            python emulator/main.py test/vec test/vec.json
+      - name: Golden func simple
+        run: |
+           python compiler/main.py test/func_simpl.asm
+           python emulator/main.py test/func_simpl test/func.json
+      - name: Golden func vec
+        run: |
+           python compiler/main.py test/func_vec.asm
+           python emulator/main.py test/func_vec test/func.json
+          
 
   lint:
     runs-on: ubuntu-latest
