@@ -420,7 +420,7 @@ program ::= <data_sec> <text_sec> <int_sec> | <text_sec> <int_sec>
 
 Интерфейс командной строки: ` python emulator/main.py <path_to_compiled_files> <path_to_cfg> `.
 
-Реализовано в модуле: [machine](./emulator).
+Реализовано в модуле: [emulator](./emulator).
 
 ### DataPath
 
