@@ -509,7 +509,7 @@ program ::= <data_sec> <text_sec> <int_sec> | <text_sec> <int_sec>
 ### Подробная схема `VectorDataPath` (vdp)
 ![](imgs/vdp.png)
 Ожидается, что все векторные инструкции, кроме ввода-вывода должны быть исполнены за 1 такт
-### Пример диаграммы состояния "конвейера" инструкций в программе [func_vec](./test/func_vec.asm)
+### Пример диаграммы состояния "конвейера" инструкций в программе [func_vec](old_test/func_vec.asm)
 | vex1  | vex2  | vex3  | vex4  |
 |:------|:------|:------|:------|
 | `ld`  |       |       |       |
@@ -548,7 +548,7 @@ program ::= <data_sec> <text_sec> <int_sec> | <text_sec> <int_sec>
 Тестирование выполняется при помощи golden и unit test-ов.
 
 Unit тесты реализованы в: [unit_components](./emulator/unit_components.py) [unit_modules](./emulator/unit_modules.py).    
-Golden тесты реализованы в: [test](./test).
+Golden тесты реализованы в: [test](./old_test).
 
 GitHub Actions запускается при совершении `push`-а автоматически
 
@@ -558,7 +558,7 @@ GitHub Actions запускается при совершении `push`-а ав
 
 Конфигурация для GitHub Actions находится в файле [main.yml](./.github/workflows/main.yml)
 
-### Примеры тестирования [func_vec](./test/func_vec.asm)
+### Примеры тестирования [func_vec](old_test/func_vec.asm)
 
 Golden-тесты :
 

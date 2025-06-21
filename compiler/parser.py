@@ -13,6 +13,17 @@ class ParseState(Enum):
 
 class Parser:
     @classmethod
+    def add_report_cmem(cls, opcode: int, cmd: str, arg: int | None, size:int, addr:int):
+        if arg is not None:
+            cls.report_cmd += f"{addr}: opcode: {opcode.to_bytes(1).hex()} arg: {cls.to_bytes_somehow(arg,size).hex()} -- {cmd} {arg}\n"
+        else:
+            cls.report_cmd += f"{addr}: opcode: {opcode.to_bytes(1).hex()} -- {cmd}\n"
+
+    @classmethod
+    def add_report_mem(cls, data: int, size: int, addr: int):
+        cls.report_data += f"{addr}: data: {cls.to_bytes_somehow(data,size).hex()}\n"
+
+    @classmethod
     def to_bytes_somehow(cls, val:int, size:int ) -> bytes:
         try:
             res = val.to_bytes(size, signed=True)
@@ -28,7 +39,7 @@ class Parser:
 
     @classmethod
     def reg_cmd_factory(cls, have_arg: bool, ar_size: int = 0):
-        def reg_cmd(opcode: int, arg: str | None, line: int):
+        def reg_cmd(opcode: int, name: str, arg: str | None, line: int):
             if have_arg:
                 if arg is None:
                     raise WrongSyntaxError(f"Argument not found in line: {line}")
@@ -43,11 +54,11 @@ class Parser:
                         f"In line {line}: argument cannot be contain a whitespace or unclosed quotes.")
                 else:
                     true_arg = arg
-                cls.prog[cls.cur_addr_cmem] = (opcode, true_arg, ar_size)
+                cls.prog[cls.cur_addr_cmem] = (opcode, true_arg, ar_size, name)
             else:
                 if arg is not None:
                     raise WrongSyntaxError(f"Unknown term found in line: {line}")
-                cls.prog[cls.cur_addr_cmem] = (opcode, None, 0)
+                cls.prog[cls.cur_addr_cmem] = (opcode, None, 0, name)
             cls.cur_addr_cmem += ar_size + 1
 
         return reg_cmd
@@ -58,133 +69,133 @@ class Parser:
         reg_4_arg = cls.reg_cmd_factory(True, 4)
         reg_2_arg = cls.reg_cmd_factory(True, 2)
         if cmd == 'inc':
-            reg_no_arg(0x01, cmd_arg, line)
+            reg_no_arg(0x01, "inc", cmd_arg, line)
         elif cmd == 'dec':
-            reg_no_arg(0x02, cmd_arg, line)
+            reg_no_arg(0x02, "dec",cmd_arg, line)
         elif cmd == "inc4":
-            reg_no_arg(0x03, cmd_arg, line)
+            reg_no_arg(0x03, "inc4",cmd_arg, line)
         elif cmd == 'dec4':
-            reg_no_arg(0x04, cmd_arg, line)
+            reg_no_arg(0x04, "dec4",cmd_arg, line)
         elif cmd == 'inv':
-            reg_no_arg(0x05, cmd_arg, line)
+            reg_no_arg(0x05, "inv",cmd_arg, line)
         elif cmd == 'neg':
-            reg_no_arg(0x06, cmd_arg, line)
+            reg_no_arg(0x06, "neg",cmd_arg, line)
         elif cmd == 'halt':
-            reg_no_arg(0x07, cmd_arg, line)
+            reg_no_arg(0x07, "halt",cmd_arg, line)
         elif cmd == 'ret':
-            reg_no_arg(0x08, cmd_arg, line)
+            reg_no_arg(0x08, "ret",cmd_arg, line)
         elif cmd == 'ld':
-            reg_4_arg(0x40, cmd_arg, line)
+            reg_4_arg(0x40, "ld",cmd_arg, line)
         elif cmd == 'add':
-            reg_4_arg(0x41, cmd_arg, line)
+            reg_4_arg(0x41, "add",cmd_arg, line)
         elif cmd == 'sub':
-            reg_4_arg(0x42, cmd_arg, line)
+            reg_4_arg(0x42, "sub",cmd_arg, line)
         elif cmd == 'and':
-            reg_4_arg(0x43, cmd_arg, line)
+            reg_4_arg(0x43, "and",cmd_arg, line)
         elif cmd == 'or':
-            reg_4_arg(0x44, cmd_arg, line)
+            reg_4_arg(0x44, "or",cmd_arg, line)
         elif cmd == 'xor':
-            reg_4_arg(0x45, cmd_arg, line)
+            reg_4_arg(0x45, "xor",cmd_arg, line)
         elif cmd == 'shiftl':
-            reg_4_arg(0x46, cmd_arg, line)
+            reg_4_arg(0x46, "shiftl",cmd_arg, line)
         elif cmd == 'shiftr':
-            reg_4_arg(0x47, cmd_arg, line)
+            reg_4_arg(0x47, "shiftr",cmd_arg, line)
         elif cmd == 'mul':
-            reg_4_arg(0x48, cmd_arg, line)
+            reg_4_arg(0x48, "mul",cmd_arg, line)
         elif cmd == 'div':
-            reg_4_arg(0x49, cmd_arg, line)
+            reg_4_arg(0x49, "div",cmd_arg, line)
         elif cmd == 'rem':
-            reg_4_arg(0x4a, cmd_arg, line)
+            reg_4_arg(0x4a, "rem",cmd_arg, line)
         elif cmd == 'jmp':
-            reg_4_arg(0x4b, cmd_arg, line)
+            reg_4_arg(0x4b, "jmp",cmd_arg, line)
         elif cmd == 'jz':
-            reg_4_arg(0x4c, cmd_arg, line)
+            reg_4_arg(0x4c, "jz",cmd_arg, line)
         elif cmd == 'jnz':
-            reg_4_arg(0x4d, cmd_arg, line)
+            reg_4_arg(0x4d, "jnz",cmd_arg, line)
         elif cmd == 'jgt':
-            reg_4_arg(0x4e, cmd_arg, line)
+            reg_4_arg(0x4e, "jgt",cmd_arg, line)
         elif cmd == 'jlt':
-            reg_4_arg(0x4f, cmd_arg, line)
+            reg_4_arg(0x4f, "jlt",cmd_arg, line)
         elif cmd == 'jc':
-            reg_4_arg(0x51, cmd_arg, line)
+            reg_4_arg(0x51, "jc",cmd_arg, line)
         elif cmd == 'jnc':
-            reg_4_arg(0x52, cmd_arg, line)
+            reg_4_arg(0x52, "jnc",cmd_arg, line)
         elif cmd == 'jv':
-            reg_4_arg(0x53, cmd_arg, line)
+            reg_4_arg(0x53, "jv",cmd_arg, line)
         elif cmd == 'jnv':
-            reg_4_arg(0x54, cmd_arg, line)
+            reg_4_arg(0x54, "jnv",cmd_arg, line)
         elif cmd == 'ld_a':
-            reg_4_arg(0x60, cmd_arg, line)
+            reg_4_arg(0x60, "ld_a",cmd_arg, line)
         elif cmd == 'add_a':
-            reg_4_arg(0x61, cmd_arg, line)
+            reg_4_arg(0x61, "add_a",cmd_arg, line)
         elif cmd == 'sub_a':
-            reg_4_arg(0x62, cmd_arg, line)
+            reg_4_arg(0x62, "sub_a",cmd_arg, line)
         elif cmd == 'and_a':
-            reg_4_arg(0x63, cmd_arg, line)
+            reg_4_arg(0x63, "and_a",cmd_arg, line)
         elif cmd == 'or_a':
-            reg_4_arg(0x64, cmd_arg, line)
+            reg_4_arg(0x64, "or_a",cmd_arg, line)
         elif cmd == 'xor_a':
-            reg_4_arg(0x65, cmd_arg, line)
+            reg_4_arg(0x65, "xor_a",cmd_arg, line)
         elif cmd == 'shiftl_a':
-            reg_4_arg(0x66, cmd_arg, line)
+            reg_4_arg(0x66, "shiftl_a",cmd_arg, line)
         elif cmd == 'shiftr_a':
-            reg_4_arg(0x67, cmd_arg, line)
+            reg_4_arg(0x67, "shiftr_a",cmd_arg, line)
         elif cmd == 'mul_a':
-            reg_4_arg(0x68, cmd_arg, line)
+            reg_4_arg(0x68, "mul_a",cmd_arg, line)
         elif cmd == 'div_a':
-            reg_4_arg(0x69, cmd_arg, line)
+            reg_4_arg(0x69, "div_a",cmd_arg, line)
         elif cmd == 'rem_a':
-            reg_4_arg(0x6a, cmd_arg, line)
+            reg_4_arg(0x6a, "rem_a",cmd_arg, line)
         elif cmd == 'st':
-            reg_4_arg(0x6b, cmd_arg, line)
+            reg_4_arg(0x6b, "st",cmd_arg, line)
         elif cmd == 'ld_ind':
-            reg_4_arg(0x6c, cmd_arg, line)
+            reg_4_arg(0x6c, "ld_ind",cmd_arg, line)
         elif cmd == 'st_ind':
-            reg_4_arg(0x6d, cmd_arg, line)
+            reg_4_arg(0x6d, "st_ind",cmd_arg, line)
         elif cmd == 'jzr':
-            reg_2_arg(0x80, cmd_arg, line)
+            reg_2_arg(0x80, "jzr",cmd_arg, line)
         elif cmd == 'jnzr':
-            reg_2_arg(0x81, cmd_arg, line)
+            reg_2_arg(0x81, "jnzr",cmd_arg, line)
         elif cmd == 'jgtr':
-            reg_2_arg(0x82, cmd_arg, line)
+            reg_2_arg(0x82, "jgtr",cmd_arg, line)
         elif cmd == 'jltr':
-            reg_2_arg(0x83, cmd_arg, line)
+            reg_2_arg(0x83, "jltr",cmd_arg, line)
         elif cmd == 'jcr':
-            reg_2_arg(0x84, cmd_arg, line)
+            reg_2_arg(0x84, "jcr",cmd_arg, line)
         elif cmd == 'jncr':
-            reg_2_arg(0x85, cmd_arg, line)
+            reg_2_arg(0x85, "jncr",cmd_arg, line)
         elif cmd == 'jvr':
-            reg_2_arg(0x86, cmd_arg, line)
+            reg_2_arg(0x86, "jvr",cmd_arg, line)
         elif cmd == 'jnvr':
-            reg_2_arg(0x87, cmd_arg, line)
+            reg_2_arg(0x87, "jnvr",cmd_arg, line)
         elif cmd == 'jr':
-            reg_2_arg(0x88, cmd_arg, line)
+            reg_2_arg(0x88, "jr",cmd_arg, line)
         elif cmd == 'vld1':
-            reg_4_arg(0xf0, cmd_arg, line)
+            reg_4_arg(0xf0, "vld1",cmd_arg, line)
         elif cmd == 'vld2':
-            reg_4_arg(0xf1, cmd_arg, line)
+            reg_4_arg(0xf1, "vld2",cmd_arg, line)
         elif cmd == 'vld3':
-            reg_4_arg(0xf2, cmd_arg, line)
+            reg_4_arg(0xf2, "vld3",cmd_arg, line)
         elif cmd == 'vst1':
-            reg_4_arg(0xf3, cmd_arg, line)
+            reg_4_arg(0xf3, "vst1",cmd_arg, line)
         elif cmd == 'vst2':
-            reg_4_arg(0xf4, cmd_arg, line)
+            reg_4_arg(0xf4, "vst2",cmd_arg, line)
         elif cmd == 'vst3':
-            reg_4_arg(0xf5, cmd_arg, line)
+            reg_4_arg(0xf5, "vst3",cmd_arg, line)
         elif cmd == 'vadd12':
-            reg_no_arg(0xd0, cmd_arg, line)
+            reg_no_arg(0xd0, "vadd12",cmd_arg, line)
         elif cmd == 'vsub12':
-            reg_no_arg(0xd1, cmd_arg, line)
+            reg_no_arg(0xd1, "vsub12",cmd_arg, line)
         elif cmd == 'vmul12':
-            reg_no_arg(0xd2, cmd_arg, line)
+            reg_no_arg(0xd2, "vmul12",cmd_arg, line)
         elif cmd == 'vdiv12':
-            reg_no_arg(0xd3, cmd_arg, line)
+            reg_no_arg(0xd3, "vdiv12",cmd_arg, line)
         elif cmd == 'vmv31':
-            reg_no_arg(0xc1, cmd_arg, line)
+            reg_no_arg(0xc1, "vmv31",cmd_arg, line)
         elif cmd == 'vmv32':
-            reg_no_arg(0xc2, cmd_arg, line)
+            reg_no_arg(0xc2, "vmv32",cmd_arg, line)
         elif cmd == 'vcmp3':
-            reg_no_arg(0xca, cmd_arg, line)
+            reg_no_arg(0xca, "vcmp3",cmd_arg, line)
         else:
             raise WrongSyntaxError(f"Unknown command found in line: {line}.")
 
@@ -219,7 +230,9 @@ class Parser:
             raise WrongSyntaxError(f"Unknown data type find in line {line}.")
 
     @classmethod
-    def parse_asm(cls, text: str) -> (dict[int, int], dict[int,int]):
+    def parse_asm(cls, text: str) -> (dict[int, int], dict[int,int], str, str):
+        cls.report_cmd = ""
+        cls.report_data = ""
         #split = text.lower().splitlines()
         split = text.splitlines()
         int_sec = None
@@ -306,25 +319,34 @@ class Parser:
             (val, size) = cls.data[addr]
             if val is None:
                 cls.place_series(res_mem, addr, 0, size)
+                cls.add_report_mem(0,size,addr)
 
             if type(val) is int:
                 cls.place_series(res_mem, addr, val, size)
+                cls.add_report_mem(val, size, addr)
 
             if type(val) is str:
                 if val not in cls.labels:
                     raise WrongSyntaxError(f"Unknown label {val}.")
                 cls.place_series(res_mem, addr, cls.labels[val], size)
+                cls.add_report_mem(cls.labels[val], size, addr)
+
 
         res_cmem = dict()
         for addr in cls.prog:
-            (opcode, arg, size) = cls.prog[addr]
+            (opcode, arg, size, cmd) = cls.prog[addr]
             res_cmem[addr] = opcode.to_bytes(1)[0]
             if type(arg) is int:
                 cls.place_series(res_cmem, addr+1, arg, size)
+                cls.add_report_cmem(opcode, cmd, arg, size, addr)
             elif type(arg) is str:
                 if arg not in cls.labels:
                     raise WrongSyntaxError(f"Unknown label {arg}.")
                 cls.place_series(res_cmem, addr+1, cls.labels[arg], size)
+                cls.add_report_cmem(opcode, cmd, cls.labels[arg], size, addr)
+            elif arg is None:
+                cls.add_report_cmem(opcode, cmd, None, size, addr)
+
         res_cmem[0] = 0x4B
         cls.place_series(res_cmem, 1, start, 4)
         res_cmem[5] = 0x4B
@@ -333,7 +355,7 @@ class Parser:
         # print("\n".join([f"{k}: {v}" for k,v in res_mem.items()]))
         # print("PROGRAM:")
         # print("\n".join([f"{k}: {v}" for k,v in res_cmem.items()]))
-        return res_cmem, res_mem
+        return res_cmem, res_mem, cls.report_data, cls.report_cmd
 
     @classmethod
     def preprocessor(cls, txt: str) -> str:

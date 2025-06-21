@@ -9,7 +9,7 @@ if __name__ == '__main__':
 
     with open(sys.argv[1], 'r') as f:
 
-        (cmem, mem) = Parser.parse_asm(Parser.preprocessor(f.read()))
+        (cmem, mem, rep_data, rep_cmd) = Parser.parse_asm(Parser.preprocessor(f.read()))
 
     name = sys.argv[1].rsplit('.')[0]
     mem_size = 32768
@@ -32,3 +32,9 @@ if __name__ == '__main__':
         for addr in mem:
             write_mem[addr] = mem[addr]
         f.write(write_mem)
+
+    with open(name+'.dreport', 'w') as f:
+        f.write(rep_data)
+
+    with open(name+'.creport', 'w') as f:
+        f.write(rep_cmd)

@@ -3,3 +3,7 @@ __pycache__
 **/test.asm
 **/*.cmem
 **/*.mem
+new_test/*.asm
+new_test/*.json
+**/*.creport
+**/*.dreport
