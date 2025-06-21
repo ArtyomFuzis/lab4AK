@@ -211,10 +211,10 @@ class Parser:
             elif el.isdigit() or (el[0] == '-' and el[1:].isdigit()):
                 new_vals.append(int(el))
             elif el[0] == "'" and el[-1] == "'":
-                for el2 in el[1:-1]:
+                nel = el[1:-1].replace('\\n', '\n')
+                for el2 in nel:
                     new_vals.append(ord(el2))
-            elif el[0] == "'":
-                raise WrongSyntaxError(f"In line {line}: argument cannot be contain a whitespace or unclosed quotes.")
+                new_vals.append(0x00)
             else:
                 new_vals.append(el)
 
@@ -228,6 +228,42 @@ class Parser:
                 cls.cur_addr_mem += 4
         else:
             raise WrongSyntaxError(f"Unknown data type find in line {line}.")
+
+    @classmethod
+    def split(cls,text):
+        tokens = []
+        current = []
+        in_quote = False
+        escape_next = False
+
+        for char in text:
+            if in_quote:
+                if escape_next:
+                    current.append(char)
+                    escape_next = False
+                elif char == '\\':
+                    current.append(char)
+                    escape_next = True
+                elif char == "'":
+                    current.append(char)
+                    in_quote = False
+                else:
+                    current.append(char)
+            else:
+                if char == "'":
+                    current.append(char)
+                    in_quote = True
+                elif char.isspace():
+                    if current:
+                        tokens.append(''.join(current))
+                        current = []
+                else:
+                    current.append(char)
+
+        if current:
+            tokens.append(''.join(current))
+
+        return tokens
 
     @classmethod
     def parse_asm(cls, text: str) -> (dict[int, int], dict[int,int], str, str):
@@ -245,7 +281,7 @@ class Parser:
         cls.cur_addr_cmem = 10
         for i in range(1, len(split) + 1):
             line = split[i - 1]
-            parts = re.split(r"\s+", line)
+            parts = cls.split(line)
             if len(parts) == 0:
                 continue
             if parts[-1] == '':
@@ -377,7 +413,7 @@ class Parser:
         for i in range(len(txt_split)):
             l = txt_split[i]
 
-            l_split = re.split(r"\s+", l)
+            l_split = cls.split(l)
             if len(l_split) == 0:
                 continue
             if l_split[-1] == '':
@@ -421,7 +457,7 @@ class Parser:
         for i in range(len(txt_split)):
             l = txt_split[i]
 
-            l_split = re.split(r"\s+", l)
+            l_split = cls.split(l)
             if len(l_split) == 0:
                 continue
             if l_split[-1] == '':
@@ -438,4 +474,5 @@ class Parser:
                 res += def_txt
             else:
                 res += l + "\n"
+
         return res
